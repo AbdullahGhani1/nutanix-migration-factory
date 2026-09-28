@@ -4,10 +4,10 @@ import {
   Server, ShieldAlert, UserCheck, Waypoints, XCircle
 } from 'lucide-react'
 import {
-  applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
-  getApprovals, getDependencies, getDependencyGraph, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
+  applyNetworkMapping, assess, createDependency, createExecution, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
+  getApprovals, getDependencies, getDependencyGraph, getExecutions, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
   getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
-  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, testPrismConnection, updateTargetCluster, uploadInventory
+  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, testPrismConnection, transitionExecution, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
@@ -32,6 +32,14 @@ type Approval = {
   id:number; wave_number:number; target_cluster_id:number; status:string;
   requested_by:string; requested_at:string; decided_by:string; decided_at:string|null;
   change_ticket:string; notes:string; decision_notes:string; headroom_percent:number;
+}
+
+type Execution = {
+  id:number; approval_id:number; wave_number:number; target_cluster_id:number; status:string;
+  operator:string; move_plan_name:string; change_ticket:string; started_at:string|null;
+  completed_at:string|null; cutover_duration_minutes:number|null; uat_status:string;
+  rollback_executed:boolean; validation_summary:string; rollback_reason:string;
+  evidence_reference:string; notes:string; created_at:string;
 }
 
 type CapacityEvaluation = {
@@ -83,15 +91,24 @@ export default function App(){
   const [upstreamId,setUpstreamId]=useState(0)
   const [downstreamId,setDownstreamId]=useState(0)
   const [apiKey,setApiKey]=useState('')
+  const [executions,setExecutions]=useState<Execution[]>([])
+  const [executionApprovalId,setExecutionApprovalId]=useState(0)
+  const [executionOperator,setExecutionOperator]=useState('migration.engineer')
+  const [movePlanName,setMovePlanName]=useState('')
+  const [cutoverMinutes,setCutoverMinutes]=useState(0)
+  const [validationSummary,setValidationSummary]=useState('')
+  const [rollbackReason,setRollbackReason]=useState('')
+  const [evidenceReference,setEvidenceReference]=useState('')
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
   const refreshApprovals=async()=>setApprovals(await getApprovals())
+  const refreshExecutions=async()=>setExecutions(await getExecutions())
   const refreshDependencies=async()=>{
     setDependencies(await getDependencies())
     setDependencyGraph(await getDependencyGraph())
   }
-  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshDependencies().catch(()=>{})},[])
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshExecutions().catch(()=>{});refreshDependencies().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -115,6 +132,7 @@ export default function App(){
       setReadiness(null); setRunbook(null); setCapacity(null); setDependencies([]); setDependencyGraph(null); setOptimizerResult(null)
       await act(()=>uploadInventory(f),`Imported ${f.name}`)
       await refreshApprovals().catch(()=>{})
+      await refreshExecutions().catch(()=>{})
       await refreshDependencies().catch(()=>{})
     }
   }
@@ -261,6 +279,7 @@ export default function App(){
       refresh().catch(()=>{}),
       refreshClusters().catch(()=>{}),
       refreshApprovals().catch(()=>{}),
+      refreshExecutions().catch(()=>{}),
       refreshDependencies().catch(()=>{}),
     ])
   }
@@ -269,6 +288,56 @@ export default function App(){
     setBusy(true);setMessage('')
     try{await downloadAuthenticated(path,filename)}
     catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const createExecutionRecord=async()=>{
+    if(!executionApprovalId){setMessage('Select an approved migration request');return}
+    setBusy(true);setMessage('')
+    try{
+      await createExecution({
+        approval_id:executionApprovalId,
+        operator:executionOperator,
+        move_plan_name:movePlanName,
+        evidence_reference:evidenceReference,
+        notes:'Execution record created from Migration Factory dashboard',
+      })
+      await refreshExecutions()
+      setMessage(`Execution record created for approval #${executionApprovalId}`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const moveExecution=async(execution:Execution,action:'start'|'complete'|'rollback'|'fail')=>{
+    setBusy(true);setMessage('')
+    try{
+      const payload:any={
+        action,
+        actor:executionOperator,
+        evidence_reference:evidenceReference||undefined,
+        notes:`${action} recorded from Migration Factory dashboard`,
+      }
+      if(action==='complete'){
+        payload.cutover_duration_minutes=cutoverMinutes
+        payload.uat_status='Passed'
+        payload.validation_summary=validationSummary
+      }
+      if(action==='rollback'){
+        payload.cutover_duration_minutes=cutoverMinutes||undefined
+        payload.uat_status='Failed'
+        payload.validation_summary=validationSummary
+        payload.rollback_reason=rollbackReason
+      }
+      if(action==='fail'){
+        payload.cutover_duration_minutes=cutoverMinutes||undefined
+        payload.uat_status='Failed'
+        payload.validation_summary=validationSummary
+        payload.rollback_reason=rollbackReason
+      }
+      await transitionExecution(execution.id,payload)
+      await refreshExecutions()
+      setMessage(`Execution #${execution.id} moved to ${action}`)
+    }catch(e:any){setMessage(e.message)}
     finally{setBusy(false)}
   }
 
@@ -290,7 +359,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.4-dev</div>
+        <div className="badge"><Activity size={18}/> v0.5-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -500,6 +569,46 @@ export default function App(){
             </div>}
           </div>)}
         </div>
+      </div>
+    </section>
+
+    <section className="panel executionPanel">
+      <div className="panelHead">
+        <div><h2><Activity size={18}/> Migration execution evidence</h2><p>Record an approved Nutanix Move cutover as it happens. Values are operator-entered evidence, not automatically verified claims.</p></div>
+      </div>
+      <div className="executionLayout">
+        <div className="executionForm">
+          <label className="field"><span>Approved request</span><select value={executionApprovalId} onChange={e=>setExecutionApprovalId(+e.target.value)}><option value={0}>Select approved request</option>{approvals.filter(a=>a.status==='Approved'&&!executions.some(x=>x.approval_id===a.id)).map(a=><option key={a.id} value={a.id}>Wave {a.wave_number} · Approval #{a.id} · {a.change_ticket||'No ticket'}</option>)}</select></label>
+          <Field label="Operator" value={executionOperator} onChange={setExecutionOperator}/>
+          <Field label="Nutanix Move plan name" value={movePlanName} onChange={setMovePlanName}/>
+          <Field label="Evidence reference" value={evidenceReference} onChange={setEvidenceReference}/>
+          <button className="button primary" disabled={busy||!executionApprovalId} onClick={createExecutionRecord}>Create execution record</button>
+        </div>
+        <div className="executionEvidenceForm">
+          <Field label="Measured cutover minutes" type="number" value={cutoverMinutes} onChange={(v:any)=>setCutoverMinutes(+v)}/>
+          <label className="field"><span>Validation / UAT summary</span><textarea value={validationSummary} onChange={e=>setValidationSummary(e.target.value)} placeholder="Record actual guest, network, DNS and application validation evidence."/></label>
+          <label className="field"><span>Rollback reason</span><textarea value={rollbackReason} onChange={e=>setRollbackReason(e.target.value)} placeholder="Required only when rollback is executed."/></label>
+        </div>
+      </div>
+      <div className="executionList">
+        {!executions.length&&<p className="muted">No execution evidence exists yet. An execution can only be created from an approved migration request.</p>}
+        {executions.map(x=><div className="executionCard" key={x.id}>
+          <div className="executionMeta">
+            <strong>Execution #{x.id} · Wave {x.wave_number}</strong>
+            <span>{x.change_ticket||'No change ticket'} · {x.move_plan_name||'Move plan not named'} · operator {x.operator}</span>
+            {x.cutover_duration_minutes!==null&&<span>Measured cutover: {x.cutover_duration_minutes} min · UAT: {x.uat_status}</span>}
+            {x.validation_summary&&<span>{x.validation_summary}</span>}
+          </div>
+          <div className={`executionStatus ${x.status.toLowerCase()}`}>{x.status}</div>
+          <div className="executionActions">
+            {x.status==='Planned'&&<button className="button primary" onClick={()=>moveExecution(x,'start')}>Start</button>}
+            {x.status==='InProgress'&&<>
+              <button className="button primary" onClick={()=>moveExecution(x,'complete')}>Complete</button>
+              <button className="button" onClick={()=>moveExecution(x,'rollback')}>Rollback</button>
+              <button className="button" onClick={()=>moveExecution(x,'fail')}>Fail</button>
+            </>}
+          </div>
+        </div>)}
       </div>
     </section>
 
