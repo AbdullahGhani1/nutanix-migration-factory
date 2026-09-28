@@ -402,7 +402,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.8-dev</div>
+        <div className="badge"><Activity size={18}/> v0.9-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -612,6 +612,9 @@ export default function App(){
             {a.status==='Pending' && <div className="approvalActions">
               <button className="iconButton approve" title="Approve" onClick={()=>decide(a.id,'Approved')}><CheckCircle2 size={16}/></button>
               <button className="iconButton reject" title="Reject" onClick={()=>decide(a.id,'Rejected')}><XCircle size={16}/></button>
+            </div>}
+            {a.status==='Approved' && <div className="approvalActions">
+              <button className="button" disabled={busy} onClick={()=>download(`/api/v1/reports/approvals/${a.id}/cab-package.zip`,`nutanix-cab-${a.change_ticket||`approval-${a.id}`}-wave-${a.wave_number}.zip`)}><FileText size={15}/> CAB package</button>
             </div>}
           </div>)}
         </div>
