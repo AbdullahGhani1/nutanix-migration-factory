@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.2 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.3 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -29,6 +29,16 @@ This repository implements that workflow as software.
 - Prism Central cluster identity reconciliation (extId/name)
 - Migration approval workflow gated by readiness + capacity
 - Planning audit history for cluster, capacity and approval events
+- Explicit workload dependency graph with cycle prevention
+- Dependency-aware service start/stop sequencing in wave runbooks
+- Downloadable implementation-planning PDF report
+- Dependency-aware wave optimizer with CPU/RAM/storage/VM constraints
+- Pilot-first or risk-first migration sequencing strategies
+- Optional service-key RBAC for self-hosted/private deployments
+- Prometheus metrics, request correlation and structured HTTP logs
+- Optional Prometheus + Grafana Docker Compose observability profile
+- API/database readiness endpoint and container health checks
+- Alembic database migrations with migration validation in CI
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
@@ -53,12 +63,13 @@ flowchart LR
     G --> H[Wave Planner]
     H --> I[Target AHV Capacity Gate]
     I --> J[Approval Workflow]
-    J --> K[Cutover / Rollback Runbooks]
-    H --> L[Migration Reports]
-    M[Prism Central v4 API] --> N[Nutanix Inventory Adapter]
-    N --> D
-    N --> I
-    O[React Dashboard] --> B
+    J --> K[Dependency Graph]
+    K --> L[Cutover / Rollback Runbooks]
+    H --> M[CSV + PDF Reports]
+    N[Prism Central v4 API] --> O[Nutanix Inventory Adapter]
+    O --> D
+    O --> I
+    P[React Dashboard] --> B
 ```
 
 ## Tech stack
@@ -83,6 +94,19 @@ Open:
 - API: `http://localhost:8000`
 - OpenAPI: `http://localhost:8000/docs`
 
+The API container runs `alembic upgrade head` before starting Uvicorn.
+
+### Running the backend without Docker
+
+```bash
+cd backend
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Schema creation is intentionally migration-driven; the application no longer mutates database structure implicitly at startup.
+
 ## Typical migration workflow
 
 ```text
@@ -101,6 +125,8 @@ Application-aware migration waves
 Target AHV capacity evaluation
     ↓
 Readiness + capacity approval gate
+    ↓
+Dependency-aware service sequencing
     ↓
 Wave cutover + rollback runbook
     ↓
@@ -222,7 +248,32 @@ curl -X POST http://localhost:8000/api/v1/approvals/1/decision \
   }'
 ```
 
-### 11. Export the migration plan
+### 11. Define an application dependency
+
+```bash
+curl -X POST http://localhost:8000/api/v1/dependencies \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upstream_workload_id":1,
+    "downstream_workload_id":2,
+    "dependency_type":"service",
+    "notes":"Application tier depends on database tier"
+  }'
+```
+
+The dependency API rejects circular graphs. Wave runbooks use the resulting topology to generate deterministic service start and stop orders.
+
+### 12. Export the implementation PDF
+
+```bash
+curl -o nutanix-implementation-report.pdf \
+  http://localhost:8000/api/v1/reports/implementation-report.pdf
+```
+
+The PDF includes estate totals, migration waves, target capacity profiles, governance approvals and application dependencies.
+
+### 13. Export the migration plan
+
 
 
 ```bash
@@ -230,7 +281,82 @@ curl -o migration-plan.csv \
   http://localhost:8000/api/v1/reports/migration-plan.csv
 ```
 
+## Dependency-aware optimizer
+
+The optimizer groups application workloads atomically, respects explicit upstream/downstream dependencies, and packs groups into migration waves using configurable constraints:
+
+```text
+max VMs
+max vCPU
+max memory GB
+max storage GB
+strategy = pilot_first | risk_first
+```
+
+Example:
+
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/optimizer/waves?max_vms=20&max_vcpu=160&max_memory_gb=512&max_storage_gb=5000&strategy=pilot_first"
+```
+
+Oversized application groups are not silently split. They are isolated in their own wave with an explicit warning so an engineer can review the exception.
+
+## Optional service-key RBAC
+
+Authentication is disabled by default for local development. For a private/self-hosted deployment, set:
+
+```env
+AUTH_ENABLED=true
+VIEWER_API_KEY_SHA256=<sha256>
+OPERATOR_API_KEY_SHA256=<sha256>
+APPROVER_API_KEY_SHA256=<sha256>
+ADMIN_API_KEY_SHA256=<sha256>
+```
+
+Generate a SHA-256 hash without storing the plaintext key in source control:
+
+```bash
+python -c "import hashlib; print(hashlib.sha256(b'your-strong-random-key').hexdigest())"
+```
+
+Use the plaintext key only at request time:
+
+```text
+X-API-Key: <plaintext-key>
+```
+
+Roles are deliberately separated: viewers are read-only, operators perform migration-planning mutations, approvers decide migration approvals, and admins can perform all actions. This is a service-key control for self-hosted deployments; enterprise SSO/OIDC remains the preferred production identity architecture.
+
+## Observability
+
+Application telemetry is exposed at:
+
+```text
+GET /metrics
+GET /health
+GET /ready
+```
+
+Every API response also receives an `X-Request-ID` correlation ID. HTTP request count/latency metrics use route templates instead of raw IDs to avoid high-cardinality Prometheus labels.
+
+Start the optional observability stack:
+
+```bash
+docker compose --profile observability up --build
+```
+
+Then open:
+
+```text
+Prometheus: http://localhost:9090
+Grafana:    http://localhost:3000
+```
+
+Change the Grafana development password before using the stack outside a local environment.
+
 ## Prism Central connector
+
 
 Configure:
 
@@ -290,12 +416,22 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] persistent target-cluster update/edit workflow
 
 ### v0.3
-- live target-cluster utilization adapter using supported telemetry APIs
-- dependency graph
-- migration-wave optimizer
-- PDF implementation report
-- authentication / RBAC
-- observability
+- [x] workload dependency graph
+- [x] cycle prevention
+- [x] dependency-aware wave runbooks
+- [x] dependency-aware migration-wave optimizer
+- [x] pilot-first / risk-first sequencing strategy
+- [x] PDF implementation / handover report
+- [x] dependency planner UI
+- [x] optional service-key RBAC
+- [x] Prometheus application metrics
+- [x] Grafana dashboard and Compose observability profile
+- [x] request correlation / structured HTTP logging
+- [x] readiness endpoint and API healthcheck
+- [x] Alembic database migrations
+- [x] migration validation in CI
+- [ ] live target-cluster utilization adapter using supported telemetry APIs
+- [ ] enterprise SSO / OIDC
 
 ### v1.0
 - validated against authorized Prism Central
