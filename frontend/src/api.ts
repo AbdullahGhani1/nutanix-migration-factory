@@ -58,3 +58,24 @@ export async function evaluateWaveCapacity(wave:number, headroom=20){
 export async function reconcilePrismClusters(){
   return jsonOrThrow(await fetch(`${API}/api/v1/capacity/prism-reconcile`))
 }
+
+
+export async function getApprovals(){
+  return jsonOrThrow(await fetch(`${API}/api/v1/approvals`))
+}
+
+export async function requestWaveApproval(wave:number, payload:any){
+  return jsonOrThrow(await fetch(`${API}/api/v1/approvals/waves/${wave}/request`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function decideApproval(id:number, payload:any){
+  return jsonOrThrow(await fetch(`${API}/api/v1/approvals/${id}/decision`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
