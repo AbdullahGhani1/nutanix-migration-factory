@@ -98,30 +98,39 @@ class NutanixClient:
         page = 0
         collected: list[dict] = []
         last_metadata: dict = {}
+        last_total: int | None = None
+        last_page_size = 0
 
         while len(collected) < max_items:
             payload = self._get(path, {"$page": page, "$limit": page_size})
             data = payload.get("data", []) if isinstance(payload, dict) else []
             last_metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
+            last_total = _metadata_total(payload)
+            last_page_size = len(data)
             if not data:
                 break
 
             remaining = max_items - len(collected)
             collected.extend(data[:remaining])
 
-            total = _metadata_total(payload)
+            total = last_total
             if total is not None and len(collected) >= min(total, max_items):
                 break
             if len(data) < page_size:
                 break
             page += 1
 
+        if last_total is not None:
+            truncated = last_total > len(collected)
+        else:
+            truncated = len(collected) >= max_items and last_page_size >= page_size
+
         return {
             "data": collected,
             "metadata": {
                 **last_metadata,
                 "returnedByMigrationFactory": len(collected),
-                "truncatedByMigrationFactory": len(collected) >= max_items,
+                "truncatedByMigrationFactory": truncated,
             },
         }
 
@@ -143,6 +152,12 @@ class NutanixClient:
             {"$limit": min(limit, 100)},
         )
 
+    def list_all_subnets(self, max_items: int = 1000) -> dict:
+        return self._list_all(
+            "/api/networking/v4.0/config/subnets",
+            max_items=max_items,
+        )
+
     def inventory_snapshot(self, max_items: int = 1000) -> dict:
         clusters = self._list_all(
             "/api/clustermgmt/v4.0/ahv/config/clusters",
@@ -152,10 +167,7 @@ class NutanixClient:
             "/api/vmm/v4.0/ahv/config/vms",
             max_items=max_items,
         )
-        subnets = self._list_all(
-            "/api/networking/v4.0/config/subnets",
-            max_items=max_items,
-        )
+        subnets = self.list_all_subnets(max_items=max_items)
         return {
             "clusters": clusters,
             "vms": vms,
