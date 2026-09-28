@@ -226,3 +226,44 @@ class NetworkReconciliationResponse(BaseModel):
     missing: int
     ambiguous: int
     results: list[NetworkReconciliationItem]
+
+
+class ExecutionCreate(BaseModel):
+    approval_id: int
+    operator: str = Field(min_length=1)
+    move_plan_name: str = ""
+    evidence_reference: str = ""
+    notes: str = ""
+
+
+class ExecutionTransition(BaseModel):
+    action: str
+    actor: str = Field(min_length=1)
+    cutover_duration_minutes: float | None = Field(default=None, ge=0)
+    uat_status: str | None = None
+    validation_summary: str = ""
+    rollback_reason: str = ""
+    evidence_reference: str | None = None
+    notes: str = ""
+
+
+class ExecutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    approval_id: int
+    wave_number: int
+    target_cluster_id: int
+    status: str
+    operator: str
+    move_plan_name: str
+    change_ticket: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    cutover_duration_minutes: float | None
+    uat_status: str
+    rollback_executed: bool
+    validation_summary: str
+    rollback_reason: str
+    evidence_reference: str
+    notes: str
+    created_at: datetime
