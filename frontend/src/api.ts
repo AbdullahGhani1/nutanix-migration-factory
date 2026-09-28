@@ -194,3 +194,20 @@ export async function transitionExecution(id:number, payload:any){
 export async function getExecutionEvidence(id:number){
   return jsonOrThrow(await apiFetch(`/api/v1/executions/${id}/evidence`))
 }
+
+
+export async function getTechnicalValidations(){
+  return jsonOrThrow(await apiFetch('/api/v1/validation'))
+}
+
+export async function recordTechnicalValidation(executionId:number, payload:any){
+  return jsonOrThrow(await apiFetch(`/api/v1/validation/executions/${executionId}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function getExecutionTechnicalValidations(executionId:number){
+  return jsonOrThrow(await apiFetch(`/api/v1/validation/executions/${executionId}`))
+}
