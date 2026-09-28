@@ -79,3 +79,18 @@ export async function decideApproval(id:number, payload:any){
     body:JSON.stringify(payload),
   }))
 }
+
+
+export async function updateTargetCluster(id:number, payload:any){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/clusters/${id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function deleteTargetCluster(id:number){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/clusters/${id}`, {
+    method:'DELETE',
+  }))
+}
