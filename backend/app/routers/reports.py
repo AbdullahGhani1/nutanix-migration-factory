@@ -1,11 +1,14 @@
 import csv
 import io
+
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
 from ..db import get_db
-from ..models import Workload
+from ..models import MigrationApproval, TargetCluster, Workload, WorkloadDependency
+from ..services.implementation_report import build_implementation_report
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
@@ -29,3 +32,18 @@ def migration_plan_csv(db: Session = Depends(get_db)):
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={
         "Content-Disposition": "attachment; filename=migration-plan.csv"
     })
+
+
+@router.get("/implementation-report.pdf")
+def implementation_report_pdf(db: Session = Depends(get_db)):
+    workloads = list(db.scalars(select(Workload).order_by(Workload.wave_number, Workload.name)))
+    clusters = list(db.scalars(select(TargetCluster).order_by(TargetCluster.name)))
+    approvals = list(db.scalars(select(MigrationApproval).order_by(MigrationApproval.requested_at)))
+    dependencies = list(db.scalars(select(WorkloadDependency).order_by(WorkloadDependency.id)))
+
+    pdf = build_implementation_report(workloads, clusters, approvals, dependencies)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=nutanix-implementation-report.pdf"},
+    )
