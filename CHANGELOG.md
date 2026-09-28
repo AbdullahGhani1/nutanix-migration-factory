@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 — in development
+
+- Added generated Nutanix Terraform planning pack
+- Added official nutanix/nutanix provider 2.4.x declaration
+- Added nutanix_virtual_machine_v2 scaffold for reviewed rebuild/greenfield scenarios
+- Added API-key based provider configuration without exporting secrets
+- VM creation is disabled by default with an explicit enable_vm_creation safety gate
+- Added target subnet extId mapping input and workload inventory export
+- Added SHA-256 manifest for generated Terraform artifacts
+- Added authenticated Terraform ZIP download to the React dashboard
+- Added CI generation plus terraform fmt/init/validate checks
+- Added Terraform integration documentation and safety boundaries
+
+
 ## 0.5.0 — in development
 
 - Added migration execution records linked to approved change requests
