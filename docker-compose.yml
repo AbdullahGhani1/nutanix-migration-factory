@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nutanix
+      POSTGRES_PASSWORD: nutanix
+      POSTGRES_DB: nutanix_migration
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutanix"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://nutanix:nutanix@db:5432/nutanix_migration
+      CORS_ORIGINS: http://localhost:5173
+      NUTANIX_PC_URL: ${NUTANIX_PC_URL:-}
+      NUTANIX_USERNAME: ${NUTANIX_USERNAME:-}
+      NUTANIX_PASSWORD: ${NUTANIX_PASSWORD:-}
+      NUTANIX_VERIFY_TLS: ${NUTANIX_VERIFY_TLS:-true}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
