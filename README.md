@@ -1,12 +1,12 @@
 # Nutanix Migration Factory
 
-A production-oriented migration assessment and wave-planning platform for VMware-to-Nutanix programs.
+A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** working MVP. The application performs inventory ingestion, normalization, migration-complexity assessment, wave planning, report generation, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.2 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
-Enterprise VMware-to-Nutanix programs need more than a spreadsheet. Teams need repeatable discovery, transparent migration risk scoring, application grouping, network mapping, wave planning, cutover artifacts, and an auditable handover process.
+Enterprise VMware-to-Nutanix programs need more than a spreadsheet. Teams need repeatable discovery, transparent migration-risk reasoning, application grouping, network mapping, wave planning, readiness gates, cutover artifacts, rollback controls, and an auditable handover process.
 
 This repository implements that workflow as software.
 
@@ -15,17 +15,30 @@ This repository implements that workflow as software.
 - Import RVTools-style CSV and `.xlsx` inventory exports
 - Flexible column normalization for common RVTools `vInfo` fields
 - Persist discovered workloads in PostgreSQL/SQLite
-- Calculate a **migration complexity score** with explicit reasons
-- Group workloads into migration waves by application group and capacity
-- Generate CSV migration-plan reports
+- Calculate an explainable **migration complexity score**
+- Deterministic source network → AHV subnet mapping
+  - exact mappings
+  - wildcard rules such as `PROD-*`
+- Pre-migration readiness controls
+  - blocked workloads
+  - ready-with-warning workloads
+  - clean ready workloads
+- Application-aware migration-wave planning
+- Target AHV cluster capacity profiles with explicit CPU overcommit + headroom policy
+- Per-wave placement evaluation and ranked target-cluster candidates
+- Prism Central cluster identity reconciliation (extId/name)
+- Migration approval workflow gated by readiness + capacity
+- Planning audit history for cluster, capacity and approval events
+- Per-wave cutover + rollback runbook generation
+- CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
-  - List registered clusters
-  - List VMs
-- React dashboard for upload, assessment and wave generation
+  - list registered clusters
+  - list VMs
+- React dashboard
 - Docker Compose local stack
 - Backend test suite
 - GitHub Actions CI
-- Architecture, security and migration-methodology documentation
+- HLD, LLD, security and migration methodology documentation
 
 ## Architecture
 
@@ -34,83 +47,192 @@ flowchart LR
     A[RVTools CSV/XLSX] --> B[FastAPI Ingestion API]
     B --> C[Normalization Service]
     C --> D[(PostgreSQL)]
-    D --> E[Complexity Assessment Engine]
-    E --> F[Wave Planner]
-    F --> G[Migration Report]
-    H[Prism Central v4 API] --> I[Nutanix Inventory Adapter]
-    I --> D
-    J[React Dashboard] --> B
+    D --> E[Complexity Assessment]
+    E --> F[Network Mapping]
+    F --> G[Readiness Gate]
+    G --> H[Wave Planner]
+    H --> I[Target AHV Capacity Gate]
+    I --> J[Approval Workflow]
+    J --> K[Cutover / Rollback Runbooks]
+    H --> L[Migration Reports]
+    M[Prism Central v4 API] --> N[Nutanix Inventory Adapter]
+    N --> D
+    N --> I
+    O[React Dashboard] --> B
 ```
 
 ## Tech stack
 
 - **Frontend:** React, TypeScript, Vite
 - **Backend:** Python, FastAPI, SQLAlchemy, Pydantic
-- **Database:** PostgreSQL in Docker; SQLite fallback for quick start
-- **Nutanix integration:** Prism Central v4 REST APIs using Basic authentication
+- **Database:** PostgreSQL in Docker; SQLite fallback
+- **Nutanix integration:** Prism Central v4 REST APIs
 - **CI:** GitHub Actions
 - **Packaging:** Docker / Docker Compose
 
-## Quick start with Docker
+## Quick start
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Then open:
+Open:
 
 - UI: `http://localhost:5173`
 - API: `http://localhost:8000`
 - OpenAPI: `http://localhost:8000/docs`
 
-## Quick start without Docker
+## Typical migration workflow
 
-### Backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+```text
+RVTools export
+    ↓
+Inventory normalization
+    ↓
+Complexity assessment
+    ↓
+Source → AHV network mapping
+    ↓
+Readiness gate
+    ↓
+Application-aware migration waves
+    ↓
+Target AHV capacity evaluation
+    ↓
+Readiness + capacity approval gate
+    ↓
+Wave cutover + rollback runbook
+    ↓
+Nutanix Move execution / Prism validation
+    ↓
+UAT + handover
 ```
 
-### Frontend
+## API examples
+
+### 1. Import inventory
 
 ```bash
-cd frontend
-npm install
-npm run dev
+curl -F "file=@samples/rvtools_sample.csv" \
+  http://localhost:8000/api/v1/imports/rvtools
 ```
 
-## Import format
+### 2. Run complexity assessment
 
-Use `samples/rvtools_sample.csv` or an RVTools `.xlsx` export containing a `vInfo` sheet.
+```bash
+curl -X POST http://localhost:8000/api/v1/assessments/run
+```
 
-The parser recognizes common fields such as:
+### 3. Apply network mappings
 
-- Name / VM
-- CPUs
-- Memory / Memory MiB
-- Provisioned MiB / Capacity
-- OS according to config file
-- Network #1
-- Folder / Resource Pool / Annotation
-- Powerstate
-- Snapshots
+```bash
+curl -X POST http://localhost:8000/api/v1/planning/network-map \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rules": [
+      {"source":"VLAN120","target":"AHV-PROD-APP"},
+      {"source":"VLAN121","target":"AHV-PROD-DB"},
+      {"source":"DEV-*","target":"AHV-DEV"}
+    ]
+  }'
+```
 
-Optional portfolio-specific fields can also be supplied:
+### 4. Check readiness
 
-- `Criticality`
-- `Downtime Minutes`
-- `App Group`
-- `Target Network`
-- `Owner`
+```bash
+curl http://localhost:8000/api/v1/planning/readiness
+```
+
+Example statuses:
+
+```text
+Ready
+Ready with warnings
+Blocked
+```
+
+A missing target network or unknown guest OS can block a workload. Snapshots, very low downtime tolerance, large disks, or many NICs can create warnings.
+
+### 5. Plan migration waves
+
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/waves/plan?max_vms=20&max_storage_gb=5000"
+```
+
+### 6. Generate a cutover / rollback runbook
+
+```bash
+curl http://localhost:8000/api/v1/planning/waves/1/runbook
+```
+
+### 7. Add a target AHV capacity profile
+
+```bash
+curl -X POST http://localhost:8000/api/v1/capacity/clusters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"AHV-PROD-A",
+    "prism_ext_id":"",
+    "physical_cpu_cores":64,
+    "cpu_overcommit_ratio":4,
+    "allocated_vcpu":80,
+    "total_memory_gb":1024,
+    "used_memory_gb":320,
+    "usable_storage_gb":20000,
+    "used_storage_gb":7000,
+    "enabled":true
+  }'
+```
+
+### 8. Evaluate a wave against target capacity
+
+```bash
+curl "http://localhost:8000/api/v1/capacity/waves/1/evaluate?headroom_percent=20"
+```
+
+The CPU value is an explicit planning envelope based on physical cores × configured overcommit ratio. It is **not** an automatic Nutanix sizing recommendation.
+
+### 9. Request migration approval
+
+```bash
+curl -X POST http://localhost:8000/api/v1/approvals/waves/1/request \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_cluster_id":1,
+    "requested_by":"migration.engineer",
+    "change_ticket":"CHG-2026-0042",
+    "headroom_percent":20,
+    "notes":"Pilot wave after application-owner validation"
+  }'
+```
+
+A wave cannot enter approval while readiness blockers remain or when the selected target cluster fails the configured capacity policy.
+
+### 10. Approve or reject the migration wave
+
+```bash
+curl -X POST http://localhost:8000/api/v1/approvals/1/decision \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision":"Approved",
+    "decided_by":"change.manager",
+    "notes":"CAB approval recorded in CHG-2026-0042"
+  }'
+```
+
+### 11. Export the migration plan
+
+
+```bash
+curl -o migration-plan.csv \
+  http://localhost:8000/api/v1/reports/migration-plan.csv
+```
 
 ## Prism Central connector
 
-Set these variables in `.env`:
+Configure:
 
 ```bash
 NUTANIX_PC_URL=https://prism-central.example.com:9440
@@ -119,57 +241,66 @@ NUTANIX_PASSWORD=change-me
 NUTANIX_VERIFY_TLS=true
 ```
 
-Endpoints used by this MVP:
+Current read-only discovery endpoints:
 
 ```text
 GET /api/clustermgmt/v4.0/ahv/config/clusters
 GET /api/vmm/v4.0/ahv/config/vms
 ```
 
-Nutanix v4 APIs are the current recommended API family and provide GA namespaces for cluster and VM management on supported Prism Central/AOS releases.
+No destructive Nutanix operation is executed by the current connector.
 
-## API examples
+## Engineering boundaries
 
-### Upload inventory
+### Migration complexity is not compatibility
 
-```bash
-curl -F "file=@samples/rvtools_sample.csv" \
-  http://localhost:8000/api/v1/imports/rvtools
-```
+The score is an explainable prioritization mechanism based on workload size, downtime tolerance, business criticality, OS confidence, snapshots, NIC count and similar migration factors.
 
-### Run complexity assessment
+It does **not** certify that a workload is supported by Nutanix Move or AHV.
 
-```bash
-curl -X POST http://localhost:8000/api/v1/assessments/run
-```
+### Readiness is a planning gate
 
-### Plan migration waves
+The readiness engine validates whether the data needed to plan a controlled migration is present. Final product supportability must be validated against the current Nutanix Move documentation and the actual target environment.
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/waves/plan?max_vms=20&max_storage_gb=5000"
-```
+## Real-world evidence required before claiming production Nutanix migration experience
 
-### Export plan
+This repository is genuine engineering work, but production Nutanix implementation experience requires a real authorized environment. The next evidence milestones are:
 
-```bash
-curl -o migration-plan.csv \
-  http://localhost:8000/api/v1/reports/migration-plan.csv
-```
+1. Run the platform against a sanitized real VMware inventory.
+2. Connect it to an authorized Prism Central environment.
+3. Map actual VMware port groups to actual AHV subnets.
+4. Validate target-cluster capacity.
+5. Execute a pilot workload with Nutanix Move.
+6. Execute an approved migration wave.
+7. Record measured cutover duration, UAT result and rollback criteria.
+8. Publish sanitized operational evidence and handover material.
 
-## What the score means
+## Roadmap
 
-The score is deliberately named **migration complexity**, not “Nutanix compatibility.” It is an explainable prioritization mechanism based on workload size, downtime tolerance, business criticality, OS confidence, snapshots, NIC count and similar factors. Final migration supportability must be verified against current Nutanix Move/product documentation and the target environment.
+### v0.2
+- [x] network mapping engine
+- [x] readiness controls
+- [x] wave runbook generation
+- [x] automated tests
+- [x] dashboard for mapping/readiness
+- [x] target AHV capacity model
+- [x] Prism cluster identity reconciliation
+- [x] migration approval/audit workflow
+- [x] approval dashboard
+- [x] persistent target-cluster update/edit workflow
 
-## Real project evidence to add next
+### v0.3
+- live target-cluster utilization adapter using supported telemetry APIs
+- dependency graph
+- migration-wave optimizer
+- PDF implementation report
+- authentication / RBAC
+- observability
 
-To turn this repository into strong job evidence:
-
-1. Run it against a sanitized real VMware estate export.
-2. Connect to an authorized Prism Central environment.
-3. Reconcile generated target mappings with actual AHV networks/clusters.
-4. Execute a real migration wave with Nutanix Move.
-5. Record actual cutover duration and validation results.
-6. Publish sanitized before/after runbooks and a demo video.
+### v1.0
+- validated against authorized Prism Central
+- validated against sanitized enterprise VMware data
+- documented pilot migration evidence
 
 ## Official references
 
