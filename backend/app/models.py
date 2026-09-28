@@ -86,3 +86,25 @@ class WorkloadDependency(Base):
     dependency_type: Mapped[str] = mapped_column(String(64), default="service")
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class MigrationExecution(Base):
+    __tablename__ = "migration_executions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    approval_id: Mapped[int] = mapped_column(ForeignKey("migration_approvals.id"), index=True)
+    wave_number: Mapped[int] = mapped_column(Integer, index=True)
+    target_cluster_id: Mapped[int] = mapped_column(ForeignKey("target_clusters.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="Planned", index=True)
+    operator: Mapped[str] = mapped_column(String(255))
+    move_plan_name: Mapped[str] = mapped_column(String(255), default="")
+    change_ticket: Mapped[str] = mapped_column(String(128), default="")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cutover_duration_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    uat_status: Mapped[str] = mapped_column(String(32), default="NotRun")
+    rollback_executed: Mapped[bool] = mapped_column(Boolean, default=False)
+    validation_summary: Mapped[str] = mapped_column(Text, default="")
+    rollback_reason: Mapped[str] = mapped_column(Text, default="")
+    evidence_reference: Mapped[str] = mapped_column(String(512), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

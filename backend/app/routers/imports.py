@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import ImportBatch, MigrationApproval, Workload, WorkloadDependency
+from ..models import ImportBatch, MigrationApproval, MigrationExecution, Workload, WorkloadDependency
 from ..schemas import ImportResult
 from ..services.rvtools import parse_inventory
 
@@ -27,6 +27,7 @@ async def import_rvtools(file: UploadFile = File(...), db: Session = Depends(get
     # Each import becomes the active estate. Planning artifacts tied to the prior
     # workload IDs/waves are invalidated before the new inventory is persisted.
     db.execute(delete(WorkloadDependency))
+    db.execute(delete(MigrationExecution))
     db.execute(delete(MigrationApproval))
     db.execute(delete(Workload))
     for row in rows:

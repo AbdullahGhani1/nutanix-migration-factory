@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 — in development
+
+- Added migration execution records linked to approved change requests
+- Added Planned / InProgress / Succeeded / RolledBack / Failed execution lifecycle
+- Added measured cutover duration and UAT status fields
+- Added explicit validation summary and rollback reason requirements
+- Added Nutanix Move plan name and sanitized evidence-reference fields
+- Added execution audit events and standalone evidence endpoint
+- Added migration execution evidence to implementation PDF
+- Added migration execution dashboard and controls
+- Added Alembic revision 0002 for execution evidence
+- Added ZIP evidence bundle containing implementation PDF, migration CSV, execution JSON and SHA-256 manifest
+- Active-estate replacement now invalidates stale execution records before approvals/workloads
+
 ## 0.4.0 — in development
 
 - Added read-only Prism Central connection-test endpoint

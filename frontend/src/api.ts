@@ -169,3 +169,28 @@ export async function getPrismNetworkReconciliation(maxItems=1000){
 export async function getPrismSubnets(limit=100){
   return jsonOrThrow(await apiFetch(`/api/v1/nutanix/subnets?limit=${limit}`))
 }
+
+
+export async function getExecutions(){
+  return jsonOrThrow(await apiFetch('/api/v1/executions'))
+}
+
+export async function createExecution(payload:any){
+  return jsonOrThrow(await apiFetch('/api/v1/executions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function transitionExecution(id:number, payload:any){
+  return jsonOrThrow(await apiFetch(`/api/v1/executions/${id}/transition`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function getExecutionEvidence(id:number){
+  return jsonOrThrow(await apiFetch(`/api/v1/executions/${id}/evidence`))
+}
