@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import MigrationApproval, TargetCluster, Workload, WorkloadDependency
+from ..models import MigrationApproval, MigrationExecution, TargetCluster, Workload, WorkloadDependency
 from ..services.implementation_report import build_implementation_report
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -40,8 +40,9 @@ def implementation_report_pdf(db: Session = Depends(get_db)):
     clusters = list(db.scalars(select(TargetCluster).order_by(TargetCluster.name)))
     approvals = list(db.scalars(select(MigrationApproval).order_by(MigrationApproval.requested_at)))
     dependencies = list(db.scalars(select(WorkloadDependency).order_by(WorkloadDependency.id)))
+    executions = list(db.scalars(select(MigrationExecution).order_by(MigrationExecution.created_at)))
 
-    pdf = build_implementation_report(workloads, clusters, approvals, dependencies)
+    pdf = build_implementation_report(workloads, clusters, approvals, dependencies, executions)
     return Response(
         content=pdf,
         media_type="application/pdf",
