@@ -32,6 +32,12 @@ This repository implements that workflow as software.
 - Explicit workload dependency graph with cycle prevention
 - Dependency-aware service start/stop sequencing in wave runbooks
 - Downloadable implementation-planning PDF report
+- Dependency-aware wave optimizer with CPU/RAM/storage/VM constraints
+- Pilot-first or risk-first migration sequencing strategies
+- Optional service-key RBAC for self-hosted/private deployments
+- Prometheus metrics, request correlation and structured HTTP logs
+- Optional Prometheus + Grafana Docker Compose observability profile
+- API/database readiness endpoint and container health checks
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
@@ -261,7 +267,82 @@ curl -o migration-plan.csv \
   http://localhost:8000/api/v1/reports/migration-plan.csv
 ```
 
+## Dependency-aware optimizer
+
+The optimizer groups application workloads atomically, respects explicit upstream/downstream dependencies, and packs groups into migration waves using configurable constraints:
+
+```text
+max VMs
+max vCPU
+max memory GB
+max storage GB
+strategy = pilot_first | risk_first
+```
+
+Example:
+
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/optimizer/waves?max_vms=20&max_vcpu=160&max_memory_gb=512&max_storage_gb=5000&strategy=pilot_first"
+```
+
+Oversized application groups are not silently split. They are isolated in their own wave with an explicit warning so an engineer can review the exception.
+
+## Optional service-key RBAC
+
+Authentication is disabled by default for local development. For a private/self-hosted deployment, set:
+
+```env
+AUTH_ENABLED=true
+VIEWER_API_KEY_SHA256=<sha256>
+OPERATOR_API_KEY_SHA256=<sha256>
+APPROVER_API_KEY_SHA256=<sha256>
+ADMIN_API_KEY_SHA256=<sha256>
+```
+
+Generate a SHA-256 hash without storing the plaintext key in source control:
+
+```bash
+python -c "import hashlib; print(hashlib.sha256(b'your-strong-random-key').hexdigest())"
+```
+
+Use the plaintext key only at request time:
+
+```text
+X-API-Key: <plaintext-key>
+```
+
+Roles are deliberately separated: viewers are read-only, operators perform migration-planning mutations, approvers decide migration approvals, and admins can perform all actions. This is a service-key control for self-hosted deployments; enterprise SSO/OIDC remains the preferred production identity architecture.
+
+## Observability
+
+Application telemetry is exposed at:
+
+```text
+GET /metrics
+GET /health
+GET /ready
+```
+
+Every API response also receives an `X-Request-ID` correlation ID. HTTP request count/latency metrics use route templates instead of raw IDs to avoid high-cardinality Prometheus labels.
+
+Start the optional observability stack:
+
+```bash
+docker compose --profile observability up --build
+```
+
+Then open:
+
+```text
+Prometheus: http://localhost:9090
+Grafana:    http://localhost:3000
+```
+
+Change the Grafana development password before using the stack outside a local environment.
+
 ## Prism Central connector
+
 
 Configure:
 
@@ -324,12 +405,17 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] workload dependency graph
 - [x] cycle prevention
 - [x] dependency-aware wave runbooks
+- [x] dependency-aware migration-wave optimizer
+- [x] pilot-first / risk-first sequencing strategy
 - [x] PDF implementation / handover report
 - [x] dependency planner UI
+- [x] optional service-key RBAC
+- [x] Prometheus application metrics
+- [x] Grafana dashboard and Compose observability profile
+- [x] request correlation / structured HTTP logging
+- [x] readiness endpoint and API healthcheck
 - [ ] live target-cluster utilization adapter using supported telemetry APIs
-- [ ] migration-wave optimizer
-- [ ] authentication / RBAC
-- [ ] observability
+- [ ] enterprise SSO / OIDC
 
 ### v1.0
 - validated against authorized Prism Central
