@@ -6,7 +6,7 @@ import {
 import {
   API, applyNetworkMapping, assess, createTargetCluster, decideApproval, evaluateWaveCapacity,
   getApprovals, getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
-  reconcilePrismClusters, requestWaveApproval, uploadInventory
+  reconcilePrismClusters, requestWaveApproval, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
@@ -63,6 +63,7 @@ export default function App(){
   const [runbook,setRunbook]=useState<any|null>(null)
   const [clusters,setClusters]=useState<TargetCluster[]>([])
   const [clusterForm,setClusterForm]=useState<any>(EMPTY_CLUSTER)
+  const [editingClusterId,setEditingClusterId]=useState<number|null>(null)
   const [capacity,setCapacity]=useState<CapacityEvaluation|null>(null)
   const [capacityWave,setCapacityWave]=useState(1)
   const [headroom,setHeadroom]=useState(20)
@@ -133,15 +134,26 @@ export default function App(){
     finally{setBusy(false)}
   }
 
-  const addCluster=async()=>{
+  const saveCluster=async()=>{
     setBusy(true);setMessage('')
     try{
-      await createTargetCluster(clusterForm)
+      if(editingClusterId){
+        await updateTargetCluster(editingClusterId,clusterForm)
+        setMessage(`Target cluster ${clusterForm.name} updated`)
+      }else{
+        await createTargetCluster(clusterForm)
+        setMessage(`Target cluster ${clusterForm.name} added`)
+      }
       await refreshClusters()
-      setMessage(`Target cluster ${clusterForm.name} added`)
+      setEditingClusterId(null)
       setClusterForm({...EMPTY_CLUSTER,name:`AHV-PROD-${clusters.length+2}`})
     }catch(e:any){setMessage(e.message)}
     finally{setBusy(false)}
+  }
+
+  const editCluster=(cluster:TargetCluster)=>{
+    setEditingClusterId(cluster.id)
+    setClusterForm({...cluster})
   }
 
   const evalCapacity=async()=>{
@@ -268,7 +280,10 @@ export default function App(){
             <Field label="Usable storage GB" type="number" value={clusterForm.usable_storage_gb} onChange={(v:any)=>setClusterForm({...clusterForm,usable_storage_gb:+v})}/>
             <Field label="Used storage GB" type="number" value={clusterForm.used_storage_gb} onChange={(v:any)=>setClusterForm({...clusterForm,used_storage_gb:+v})}/>
           </div>
-          <button className="button primary" disabled={busy} onClick={addCluster}>Add target cluster</button>
+          <div className="formActions">
+            <button className="button primary" disabled={busy} onClick={saveCluster}>{editingClusterId?'Save cluster':'Add target cluster'}</button>
+            {editingClusterId && <button className="button" disabled={busy} onClick={()=>{setEditingClusterId(null);setClusterForm(EMPTY_CLUSTER)}}>Cancel edit</button>}
+          </div>
         </div>
 
         <div className="clusterList">
@@ -286,6 +301,7 @@ export default function App(){
               <span>{c.used_memory_gb}/{c.total_memory_gb} GB RAM</span>
               <span>{Math.round(c.used_storage_gb/1024*10)/10}/{Math.round(c.usable_storage_gb/1024*10)/10} TB</span>
             </div>
+            <button className="iconButton textButton" title="Edit target cluster" onClick={()=>editCluster(c)}>Edit</button>
           </div>)}
 
           {capacity && <div className="placementResults">
