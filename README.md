@@ -38,6 +38,7 @@ This repository implements that workflow as software.
 - Prometheus metrics, request correlation and structured HTTP logs
 - Optional Prometheus + Grafana Docker Compose observability profile
 - API/database readiness endpoint and container health checks
+- Alembic database migrations with migration validation in CI
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
@@ -92,6 +93,19 @@ Open:
 - UI: `http://localhost:5173`
 - API: `http://localhost:8000`
 - OpenAPI: `http://localhost:8000/docs`
+
+The API container runs `alembic upgrade head` before starting Uvicorn.
+
+### Running the backend without Docker
+
+```bash
+cd backend
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Schema creation is intentionally migration-driven; the application no longer mutates database structure implicitly at startup.
 
 ## Typical migration workflow
 
@@ -414,6 +428,8 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] Grafana dashboard and Compose observability profile
 - [x] request correlation / structured HTTP logging
 - [x] readiness endpoint and API healthcheck
+- [x] Alembic database migrations
+- [x] migration validation in CI
 - [ ] live target-cluster utilization adapter using supported telemetry APIs
 - [ ] enterprise SSO / OIDC
 
