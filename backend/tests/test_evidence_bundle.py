@@ -11,12 +11,14 @@ def test_evidence_bundle_contains_hash_manifest():
     csv = b"Wave,VM\n1,APP-01\n"
     executions = b'[{"id":1,"status":"Succeeded"}]'
     validations = b'[{"execution_id":1,"status":"Passed"}]'
+    prism = b'[{"id":1,"status":"Captured","snapshot_sha256":"abc"}]'
 
     bundle = build_evidence_bundle(
         implementation_pdf=pdf,
         migration_plan_csv=csv,
         executions_json=executions,
         technical_validations_json=validations,
+        prism_environment_evidence_json=prism,
         metadata={"workloads": 1},
     )
 
@@ -26,11 +28,13 @@ def test_evidence_bundle_contains_hash_manifest():
             "migration-plan.csv",
             "executions.json",
             "technical-validations.json",
+            "prism-environment-evidence.json",
             "manifest.json",
         }
         manifest = json.loads(archive.read("manifest.json"))
-        assert manifest["schema"] == "nutanix-migration-factory-evidence-bundle/v2"
+        assert manifest["schema"] == "nutanix-migration-factory-evidence-bundle/v3"
         assert manifest["metadata"]["workloads"] == 1
         assert manifest["files"]["migration-plan.csv"]["sha256"] == hashlib.sha256(csv).hexdigest()
         assert archive.read("implementation-report.pdf") == pdf
         assert archive.read("technical-validations.json") == validations
+        assert archive.read("prism-environment-evidence.json") == prism
