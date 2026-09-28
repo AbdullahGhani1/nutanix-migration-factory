@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — in development
+
+- Added approval-linked enterprise CAB/change package generation
+- CAB package can only be generated for Approved migration requests
+- Added CAB summary PDF and change-request Markdown
+- Added dependency-aware implementation and rollback plans
+- Added infrastructure/application validation plan with explicit UAT boundary
+- Added scoped workload inventory CSV
+- Added readiness, capacity, approval and dependency snapshots
+- Added available execution and technical-validation evidence snapshot
+- Added SHA-256 integrity manifest for all CAB artifacts
+- Added per-approved-request CAB download in the React governance dashboard
+- Added enterprise CAB package documentation and tests
+
+
 ## 0.8.0 — in development
 
 - Added technical validation records linked to migration executions

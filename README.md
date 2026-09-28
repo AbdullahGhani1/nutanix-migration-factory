@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.8 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.9 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -440,6 +440,20 @@ manifest.json
 
 `manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
 
+## Enterprise CAB / change package
+
+An **Approved** migration request can now be exported as a change-management handoff bundle:
+
+```text
+GET /api/v1/reports/approvals/{approval_id}/cab-package.zip
+```
+
+The ZIP contains a CAB summary PDF, change request, dependency-aware implementation plan, rollback template, validation plan, scoped workload CSV, approval snapshot, readiness snapshot, capacity snapshot, dependency map, available execution/technical-validation evidence, and a SHA-256 manifest.
+
+The generator refuses pending/rejected approvals and keeps infrastructure validation distinct from application-owner UAT. Customer-specific maintenance windows, communication plans, stakeholder contacts, rollback thresholds and final business go/no-go remain under the authorized change process.
+
+See `docs/CAB_CHANGE_PACKAGE.md`.
+
 ## Technical validation evidence
 
 v0.8 connects post-migration infrastructure checks to a specific migration execution record instead of leaving validation as an unstructured note.
@@ -594,6 +608,24 @@ This repository is genuine engineering work, but production Nutanix implementati
 8. Publish sanitized operational evidence and handover material.
 
 ## Roadmap
+
+### v0.9
+- [x] approval-linked enterprise CAB package generator
+- [x] Approved-only change-package gate
+- [x] CAB summary PDF
+- [x] change-request Markdown
+- [x] dependency-aware implementation plan
+- [x] rollback plan template
+- [x] technical + application-owner validation plan
+- [x] scoped workload inventory CSV
+- [x] readiness and target-capacity snapshots
+- [x] approval/dependency/execution evidence snapshots
+- [x] SHA-256 package manifest
+- [x] approved-change download from React governance dashboard
+- [ ] populate organization-specific maintenance window and communication fields
+- [ ] generate a real CAB package for an authorized migration change
+
+
 
 ### v0.8
 - [x] execution-linked technical validation records
