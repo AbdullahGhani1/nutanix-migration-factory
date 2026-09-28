@@ -4,9 +4,9 @@ import {
   Server, ShieldAlert, UserCheck, Waypoints, XCircle
 } from 'lucide-react'
 import {
-  API, applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, evaluateWaveCapacity,
+  applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
   getApprovals, getDependencies, getDependencyGraph, getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
-  reconcilePrismClusters, requestWaveApproval, updateTargetCluster, uploadInventory
+  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
@@ -79,6 +79,7 @@ export default function App(){
   const [optimizerResult,setOptimizerResult]=useState<any|null>(null)
   const [upstreamId,setUpstreamId]=useState(0)
   const [downstreamId,setDownstreamId]=useState(0)
+  const [apiKey,setApiKey]=useState('')
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
@@ -232,6 +233,24 @@ export default function App(){
     finally{setBusy(false)}
   }
 
+  const connectApiKey=async()=>{
+    setSessionApiKey(apiKey)
+    setMessage(apiKey?'Session API key applied':'Session API key cleared')
+    await Promise.all([
+      refresh().catch(()=>{}),
+      refreshClusters().catch(()=>{}),
+      refreshApprovals().catch(()=>{}),
+      refreshDependencies().catch(()=>{}),
+    ])
+  }
+
+  const download=async(path:string,filename:string)=>{
+    setBusy(true);setMessage('')
+    try{await downloadAuthenticated(path,filename)}
+    catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
   const decide=async(id:number,decision:'Approved'|'Rejected')=>{
     setBusy(true);setMessage('')
     try{
@@ -249,7 +268,13 @@ export default function App(){
         <h1>Migration Factory</h1>
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
-      <div className="badge"><Activity size={18}/> v0.2</div>
+      <div className="headerTools">
+        <div className="badge"><Activity size={18}/> v0.3</div>
+        <div className="apiKeyBox">
+          <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
+          <button className="button" onClick={connectApiKey}>Apply key</button>
+        </div>
+      </div>
     </header>
 
     <section className="actions">
@@ -258,8 +283,8 @@ export default function App(){
       <button className="button" disabled={busy||!rows.length} onClick={()=>act(planWaves,'Basic migration waves generated')}><Layers3 size={17}/> Basic plan</button>
       <button className="button primary" disabled={busy||!rows.length} onClick={runOptimizer}><Layers3 size={17}/> Optimize waves</button>
       <button className="button" disabled={busy||!rows.length} onClick={checkReadiness}><ClipboardCheck size={17}/> Readiness</button>
-      <a className="button" href={`${API}/api/v1/reports/migration-plan.csv`}><Database size={17}/> Export CSV</a>
-      <a className="button" href={`${API}/api/v1/reports/implementation-report.pdf`}><FileText size={17}/> Implementation PDF</a>
+      <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/migration-plan.csv','migration-plan.csv')}><Database size={17}/> Export CSV</button>
+      <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/implementation-report.pdf','nutanix-implementation-report.pdf')}><FileText size={17}/> Implementation PDF</button>
     </section>
 
     {message && <div className="notice">{message}</div>}
