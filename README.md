@@ -35,6 +35,7 @@ This repository implements that workflow as software.
 - Migration execution evidence workflow gated by an approved change request
 - Execution state machine: Planned → InProgress → Succeeded / RolledBack / Failed
 - Measured cutover duration, UAT status, rollback reason and evidence references
+- ZIP evidence bundle with PDF, CSV, execution JSON and SHA-256 integrity manifest
 - Dependency-aware wave optimizer with CPU/RAM/storage/VM constraints
 - Pilot-first or risk-first migration sequencing strategies
 - Optional service-key RBAC for self-hosted/private deployments
@@ -421,6 +422,24 @@ curl -X POST http://localhost:8000/api/v1/executions/1/transition \
 
 The execution record is **operator-entered evidence**. Migration Factory does not independently claim Nutanix Move executed the migration; this distinction is intentional so portfolio/CV evidence remains auditable.
 
+### Export an evidence bundle
+
+```bash
+curl -o nutanix-migration-evidence-bundle.zip \
+  http://localhost:8000/api/v1/reports/evidence-bundle.zip
+```
+
+The ZIP contains:
+
+```text
+implementation-report.pdf
+migration-plan.csv
+executions.json
+manifest.json
+```
+
+`manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
+
 ## Live Prism Central discovery
 
 
@@ -515,6 +534,7 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] evidence-reference field
 - [x] execution evidence in implementation PDF
 - [x] execution dashboard
+- [x] SHA-256 integrity-manifest evidence bundle
 - [x] Alembic execution-evidence migration
 - [ ] execute an authorized Nutanix Move pilot and populate a real execution record
 
