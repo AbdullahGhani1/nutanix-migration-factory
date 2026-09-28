@@ -300,3 +300,29 @@ class TechnicalValidationOut(BaseModel):
     evidence_reference: str
     summary: str
     recorded_at: datetime
+
+
+
+class PrismEvidenceCaptureRequest(BaseModel):
+    actor: str = Field(min_length=1)
+    evidence_reference: str = ""
+
+
+class PrismEnvironmentEvidenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    actor: str
+    clusters: int
+    vms: int
+    subnets: int
+    target_networks: int
+    matched_networks: int
+    missing_networks: int
+    ambiguous_networks: int
+    cluster_inventory_truncated: bool
+    vm_inventory_truncated: bool
+    subnet_inventory_truncated: bool
+    snapshot_sha256: str
+    evidence_reference: str
+    captured_at: datetime
