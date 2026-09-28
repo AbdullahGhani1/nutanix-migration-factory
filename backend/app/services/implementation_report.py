@@ -34,8 +34,9 @@ def _table(data, widths=None):
     return table
 
 
-def build_implementation_report(workloads, clusters, approvals, dependencies) -> bytes:
-    """Build a sanitized implementation-planning PDF from persisted project data."""
+def build_implementation_report(workloads, clusters, approvals, dependencies, executions=None) -> bytes:
+    """Build a sanitized implementation/evidence PDF from persisted project data."""
+    executions = executions or []
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -140,6 +141,28 @@ def build_implementation_report(workloads, clusters, approvals, dependencies) ->
     story.append(_table(approval_rows))
     story.append(Spacer(1, 10))
 
+    story.append(Paragraph("Migration execution evidence", styles["Heading2"]))
+    execution_rows = [[
+        "Wave", "Status", "Operator", "Move plan", "Cutover min", "UAT", "Rollback", "Evidence"
+    ]]
+    for e in executions:
+        execution_rows.append(
+            [
+                str(e.wave_number),
+                e.status,
+                e.operator,
+                e.move_plan_name or "-",
+                str(e.cutover_duration_minutes) if e.cutover_duration_minutes is not None else "-",
+                e.uat_status,
+                "Yes" if e.rollback_executed else "No",
+                e.evidence_reference or "-",
+            ]
+        )
+    if len(execution_rows) == 1:
+        execution_rows.append(["-", "No execution evidence recorded", "-", "-", "-", "-", "-", "-"])
+    story.append(_table(execution_rows))
+    story.append(Spacer(1, 10))
+
     story.append(Paragraph("Application dependencies", styles["Heading2"]))
     by_id = {w.id: w.name for w in workloads}
     dependency_rows = [["Upstream", "Downstream", "Type", "Notes"]]
@@ -162,7 +185,7 @@ def build_implementation_report(workloads, clusters, approvals, dependencies) ->
         Paragraph(
             "Migration complexity, readiness and capacity results in this report are planning controls. "
             "They do not certify Nutanix Move or AHV supportability and do not replace production sizing. "
-            "Final implementation must be validated against the authorized target environment, current "
+            "Execution records are operator-entered evidence and are not independently verified by this application. Final implementation must be validated against the authorized target environment, current "
             "Nutanix product documentation, measured utilization, HA/N+1 requirements and customer change controls.",
             styles["BodyText"],
         )
