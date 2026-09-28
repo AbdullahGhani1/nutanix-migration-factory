@@ -38,3 +38,23 @@ export async function getReadiness(){
 export async function getRunbook(wave:number){
   return jsonOrThrow(await fetch(`${API}/api/v1/planning/waves/${wave}/runbook`))
 }
+
+export async function getTargetClusters(){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/clusters`))
+}
+
+export async function createTargetCluster(payload:any){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/clusters`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function evaluateWaveCapacity(wave:number, headroom=20){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/waves/${wave}/evaluate?headroom_percent=${headroom}`))
+}
+
+export async function reconcilePrismClusters(){
+  return jsonOrThrow(await fetch(`${API}/api/v1/capacity/prism-reconcile`))
+}
