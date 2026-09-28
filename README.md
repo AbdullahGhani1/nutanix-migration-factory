@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.2 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.3 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -29,6 +29,9 @@ This repository implements that workflow as software.
 - Prism Central cluster identity reconciliation (extId/name)
 - Migration approval workflow gated by readiness + capacity
 - Planning audit history for cluster, capacity and approval events
+- Explicit workload dependency graph with cycle prevention
+- Dependency-aware service start/stop sequencing in wave runbooks
+- Downloadable implementation-planning PDF report
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
@@ -53,12 +56,13 @@ flowchart LR
     G --> H[Wave Planner]
     H --> I[Target AHV Capacity Gate]
     I --> J[Approval Workflow]
-    J --> K[Cutover / Rollback Runbooks]
-    H --> L[Migration Reports]
-    M[Prism Central v4 API] --> N[Nutanix Inventory Adapter]
-    N --> D
-    N --> I
-    O[React Dashboard] --> B
+    J --> K[Dependency Graph]
+    K --> L[Cutover / Rollback Runbooks]
+    H --> M[CSV + PDF Reports]
+    N[Prism Central v4 API] --> O[Nutanix Inventory Adapter]
+    O --> D
+    O --> I
+    P[React Dashboard] --> B
 ```
 
 ## Tech stack
@@ -101,6 +105,8 @@ Application-aware migration waves
 Target AHV capacity evaluation
     ↓
 Readiness + capacity approval gate
+    ↓
+Dependency-aware service sequencing
     ↓
 Wave cutover + rollback runbook
     ↓
@@ -222,7 +228,32 @@ curl -X POST http://localhost:8000/api/v1/approvals/1/decision \
   }'
 ```
 
-### 11. Export the migration plan
+### 11. Define an application dependency
+
+```bash
+curl -X POST http://localhost:8000/api/v1/dependencies \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upstream_workload_id":1,
+    "downstream_workload_id":2,
+    "dependency_type":"service",
+    "notes":"Application tier depends on database tier"
+  }'
+```
+
+The dependency API rejects circular graphs. Wave runbooks use the resulting topology to generate deterministic service start and stop orders.
+
+### 12. Export the implementation PDF
+
+```bash
+curl -o nutanix-implementation-report.pdf \
+  http://localhost:8000/api/v1/reports/implementation-report.pdf
+```
+
+The PDF includes estate totals, migration waves, target capacity profiles, governance approvals and application dependencies.
+
+### 13. Export the migration plan
+
 
 
 ```bash
@@ -290,12 +321,15 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] persistent target-cluster update/edit workflow
 
 ### v0.3
-- live target-cluster utilization adapter using supported telemetry APIs
-- dependency graph
-- migration-wave optimizer
-- PDF implementation report
-- authentication / RBAC
-- observability
+- [x] workload dependency graph
+- [x] cycle prevention
+- [x] dependency-aware wave runbooks
+- [x] PDF implementation / handover report
+- [x] dependency planner UI
+- [ ] live target-cluster utilization adapter using supported telemetry APIs
+- [ ] migration-wave optimizer
+- [ ] authentication / RBAC
+- [ ] observability
 
 ### v1.0
 - validated against authorized Prism Central
