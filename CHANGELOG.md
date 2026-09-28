@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — in development
+
+- Added explicit upstream/downstream workload dependency model
+- Added dependency graph API with cycle detection
+- Added deterministic service start/stop ordering
+- Integrated dependency ordering into migration-wave runbooks
+- Added dependency planner UI
+- Added implementation-planning PDF export using ReportLab
+- Added PDF generation tests
+- Invalidated stale dependencies and approvals when a new active estate is imported
+
 ## 0.2.0 — in development
 
 - Added deterministic source-network → AHV subnet mapping with wildcard rules
