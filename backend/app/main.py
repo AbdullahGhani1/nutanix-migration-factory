@@ -4,13 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .db import Base, engine
 from .observability import ObservabilityMiddleware
 from .security import ServiceKeyRBACMiddleware
 from .routers import approvals, assessments, capacity, dependencies, imports, nutanix, operations, optimizer, planning, reports, waves, workloads
 
 settings = get_settings()
-Base.metadata.create_all(bind=engine)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 app = FastAPI(
