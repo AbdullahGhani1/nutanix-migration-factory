@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.9 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v1.0 release candidate in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -536,6 +536,21 @@ terraform validate
 
 This means the exported HCL is continuously schema-validated against the declared Terraform provider surface, while any real `terraform apply` remains a separately approved action in an authorized Nutanix environment.
 
+## Live Prism environment evidence
+
+Migration Factory can persist a **sanitized, read-only Prism Central environment evidence record** directly from the configured connector:
+
+```text
+POST /api/v1/nutanix/evidence-snapshots
+GET  /api/v1/nutanix/evidence-snapshots
+```
+
+Each record captures the observed cluster/VM/subnet counts, target-network reconciliation totals, inventory-truncation flags and a SHA-256 digest of the complete in-memory Prism inventory snapshot. The raw Prism payload is not persisted by this feature.
+
+A clean capture is recorded as `Captured`. Missing/ambiguous target networks or an inventory cap produce `CapturedWithWarnings`; this is deliberately not a compatibility or production-readiness certification.
+
+The snapshots are included in the implementation PDF, the evidence ZIP, and the latest snapshot is embedded in generated CAB packages.
+
 ## Live Prism Central discovery
 
 
@@ -727,9 +742,21 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [ ] enterprise SSO / OIDC
 
 ### v1.0
-- validated against authorized Prism Central
-- validated against sanitized enterprise VMware data
-- documented pilot migration evidence
+- [x] persisted read-only Prism environment evidence snapshots
+- [x] live cluster / VM / subnet count capture
+- [x] planned target-network reconciliation evidence
+- [x] explicit inventory-truncation evidence
+- [x] SHA-256 digest of the in-memory Prism inventory snapshot
+- [x] no raw Prism inventory persistence in the evidence record
+- [x] Prism evidence audit event
+- [x] React evidence-capture history
+- [x] Prism evidence in implementation PDF
+- [x] Prism evidence in SHA-256 evidence bundle
+- [x] latest Prism evidence in CAB package
+- [x] Alembic revision 0004
+- [ ] validate against an authorized Prism Central environment
+- [ ] validate against sanitized enterprise VMware data
+- [ ] execute and document a Nutanix Move pilot migration
 
 ## Official references
 
