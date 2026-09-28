@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     nutanix_password: str = ""
     nutanix_verify_tls: bool = True
 
+    auth_enabled: bool = False
+    viewer_api_key_sha256: str = ""
+    operator_api_key_sha256: str = ""
+    approver_api_key_sha256: str = ""
+    admin_api_key_sha256: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
