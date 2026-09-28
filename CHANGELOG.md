@@ -11,6 +11,7 @@
 - Added migration execution evidence to implementation PDF
 - Added migration execution dashboard and controls
 - Added Alembic revision 0002 for execution evidence
+- Added ZIP evidence bundle containing implementation PDF, migration CSV, execution JSON and SHA-256 manifest
 - Active-estate replacement now invalidates stale execution records before approvals/workloads
 
 ## 0.4.0 — in development
