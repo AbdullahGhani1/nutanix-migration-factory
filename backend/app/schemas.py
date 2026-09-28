@@ -165,3 +165,40 @@ class ApprovalOut(BaseModel):
     notes: str
     decision_notes: str
     headroom_percent: float
+
+
+class DependencyCreate(BaseModel):
+    upstream_workload_id: int
+    downstream_workload_id: int
+    dependency_type: str = "service"
+    notes: str = ""
+
+
+class DependencyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    upstream_workload_id: int
+    downstream_workload_id: int
+    dependency_type: str
+    notes: str
+
+
+class DependencyGraphNode(BaseModel):
+    id: int
+    name: str
+    wave_number: int | None
+
+
+class DependencyGraphEdge(BaseModel):
+    id: int
+    upstream_workload_id: int
+    downstream_workload_id: int
+    dependency_type: str
+
+
+class DependencyGraphResponse(BaseModel):
+    nodes: list[DependencyGraphNode]
+    edges: list[DependencyGraphEdge]
+    has_cycle: bool
+    start_order: list[int]
+    stop_order: list[int]

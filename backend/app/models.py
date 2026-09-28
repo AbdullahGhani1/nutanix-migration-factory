@@ -76,3 +76,13 @@ class MigrationApproval(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     decision_notes: Mapped[str] = mapped_column(Text, default="")
     headroom_percent: Mapped[float] = mapped_column(Float, default=20.0)
+
+
+class WorkloadDependency(Base):
+    __tablename__ = "workload_dependencies"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    upstream_workload_id: Mapped[int] = mapped_column(ForeignKey("workloads.id"), index=True)
+    downstream_workload_id: Mapped[int] = mapped_column(ForeignKey("workloads.id"), index=True)
+    dependency_type: Mapped[str] = mapped_column(String(64), default="service")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
