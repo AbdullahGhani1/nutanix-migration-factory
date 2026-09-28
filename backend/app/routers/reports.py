@@ -174,13 +174,14 @@ def implementation_report_pdf(db: Session = Depends(get_db)):
 
 @router.get("/evidence-bundle.zip")
 def evidence_bundle_zip(db: Session = Depends(get_db)):
-    workloads, clusters, approvals, dependencies, executions = _estate(db)
+    workloads, clusters, approvals, dependencies, executions, validations = _estate(db)
     pdf = build_implementation_report(
         workloads,
         clusters,
         approvals,
         dependencies,
         executions,
+        validations,
     )
     migration_csv = _migration_plan_csv_bytes(workloads)
     execution_json = _execution_json_bytes(executions)
