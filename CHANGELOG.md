@@ -10,6 +10,13 @@
 - Added implementation-planning PDF export using ReportLab
 - Added PDF generation tests
 - Invalidated stale dependencies and approvals when a new active estate is imported
+- Added dependency-aware wave optimizer with VM/vCPU/memory/storage constraints
+- Added pilot-first and risk-first sequencing strategies
+- Added optional SHA-256 service-key RBAC for viewer/operator/approver/admin roles
+- Added Prometheus request metrics, request correlation and structured HTTP logging
+- Added /ready database readiness endpoint and API container health checks
+- Added optional Prometheus/Grafana Compose profile and provisioned dashboard
+- Expanded CI to validate app import, Compose configuration and container builds
 
 ## 0.2.0 — in development
 
