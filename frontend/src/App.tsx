@@ -5,8 +5,9 @@ import {
 } from 'lucide-react'
 import {
   applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
-  getApprovals, getDependencies, getDependencyGraph, getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
-  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, updateTargetCluster, uploadInventory
+  getApprovals, getDependencies, getDependencyGraph, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
+  getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
+  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, testPrismConnection, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
@@ -68,6 +69,8 @@ export default function App(){
   const [capacityWave,setCapacityWave]=useState(1)
   const [headroom,setHeadroom]=useState(20)
   const [prismStatus,setPrismStatus]=useState<any|null>(null)
+  const [prismEnvironment,setPrismEnvironment]=useState<any|null>(null)
+  const [prismNetwork,setPrismNetwork]=useState<any|null>(null)
   const [approvals,setApprovals]=useState<Approval[]>([])
   const [approvalWave,setApprovalWave]=useState(1)
   const [approvalClusterId,setApprovalClusterId]=useState(0)
@@ -200,6 +203,24 @@ export default function App(){
     finally{setBusy(false)}
   }
 
+  const discoverPrism=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      const [connection,environment,network]=await Promise.all([
+        testPrismConnection(),
+        getPrismEnvironmentSummary(),
+        getPrismNetworkReconciliation(),
+      ])
+      setPrismEnvironment(environment)
+      setPrismNetwork(network)
+      setMessage(`Prism connected: ${environment.clusters} cluster(s), ${environment.vms} VM(s), ${environment.subnets} subnet(s); network mappings ${network.matched}/${network.targets} matched`)
+    }catch(e:any){
+      setPrismEnvironment(null)
+      setPrismNetwork(null)
+      setMessage(e.message)
+    }finally{setBusy(false)}
+  }
+
   const requestApproval=async()=>{
     if(!approvalClusterId){setMessage('Select a target cluster before requesting approval');return}
     setBusy(true);setMessage('')
@@ -269,7 +290,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.3</div>
+        <div className="badge"><Activity size={18}/> v0.4-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -311,6 +332,32 @@ export default function App(){
         </div>)}
       </div>
     </section>}
+
+    <section className="panel prismPanel">
+      <div className="panelHead">
+        <div><h2><Waypoints size={18}/> Live Prism Central discovery</h2><p>Read-only GA v4 inventory discovery for registered clusters, AHV VMs and subnets, plus reconciliation against planned target networks.</p></div>
+        <button className="button primary" disabled={busy} onClick={discoverPrism}>Discover Prism</button>
+      </div>
+      <div className="prismDiscoveryBody">
+        {prismEnvironment ? <>
+          <div className="prismStats">
+            <Mini label="Clusters" value={prismEnvironment.clusters} tone="ok"/>
+            <Mini label="VMs" value={prismEnvironment.vms} tone="ok"/>
+            <Mini label="Subnets" value={prismEnvironment.subnets} tone="ok"/>
+            <Mini label="Mapped targets" value={prismNetwork?.matched||0} tone={(prismNetwork?.missing||prismNetwork?.ambiguous)?'warn':'ok'}/>
+          </div>
+          {(prismEnvironment.cluster_inventory_truncated||prismEnvironment.vm_inventory_truncated||prismEnvironment.subnet_inventory_truncated) &&
+            <div className="waveWarning">Discovery hit the configured inventory cap. Increase max_items or scope the query before treating counts as complete.</div>}
+          <div className="networkReconcileList">
+            {prismNetwork?.results?.map((item:any)=><div className="networkReconcileRow" key={item.target_network}>
+              <div><strong>{item.target_network}</strong><span>{item.matches?.[0]?.ext_id||'No unique Prism subnet extId'}</span></div>
+              <span className={`networkStatus ${item.status.toLowerCase()}`}>{item.status}</span>
+            </div>)}
+            {prismNetwork?.targets===0 && <p className="muted">No planned AHV target networks exist yet. Apply network mappings first, then rediscover Prism.</p>}
+          </div>
+        </> : <p className="muted">Configure Prism Central credentials in the API environment, then run discovery. The connector is read-only.</p>}
+      </div>
+    </section>
 
     <section className="planningGrid">
       <div className="panel planningPanel">

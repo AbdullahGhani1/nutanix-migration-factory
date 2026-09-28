@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — in development
+
+- Added read-only Prism Central connection-test endpoint
+- Added GA v4 subnet discovery via networking namespace
+- Added paginated cluster, VM and subnet inventory collection
+- Added explicit inventory truncation metadata
+- Added planned target-network to live Prism subnet reconciliation
+- Added Matched / Missing / Ambiguous network states
+- Added React Prism discovery and network reconciliation dashboard
+- Added tests for v4 subnet normalization, reconciliation and pagination behavior
+- Bumped API service version to 0.4.0
+
 ## 0.3.0 — in development
 
 - Added explicit upstream/downstream workload dependency model

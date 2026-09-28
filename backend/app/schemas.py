@@ -202,3 +202,27 @@ class DependencyGraphResponse(BaseModel):
     has_cycle: bool
     start_order: list[int]
     stop_order: list[int]
+
+
+class PrismEnvironmentSummary(BaseModel):
+    connected: bool
+    clusters: int
+    vms: int
+    subnets: int
+    cluster_inventory_truncated: bool
+    vm_inventory_truncated: bool
+    subnet_inventory_truncated: bool
+
+
+class NetworkReconciliationItem(BaseModel):
+    target_network: str
+    status: str
+    matches: list[dict]
+
+
+class NetworkReconciliationResponse(BaseModel):
+    targets: int
+    matched: int
+    missing: int
+    ambiguous: int
+    results: list[NetworkReconciliationItem]
