@@ -12,6 +12,7 @@ from ..models import (
     MigrationApproval,
     MigrationExecution,
     TargetCluster,
+    TechnicalValidationRecord,
     Workload,
     WorkloadDependency,
 )
@@ -68,6 +69,34 @@ def _execution_json_bytes(executions: list[MigrationExecution]) -> bytes:
     return json.dumps(data, indent=2, sort_keys=True).encode("utf-8")
 
 
+def _technical_validation_json_bytes(records: list[TechnicalValidationRecord]) -> bytes:
+    data = []
+    for row in records:
+        data.append(
+            {
+                "id": row.id,
+                "execution_id": row.execution_id,
+                "tool": row.tool,
+                "status": row.status,
+                "actor": row.actor,
+                "hosts_total": row.hosts_total,
+                "hosts_passed": row.hosts_passed,
+                "hosts_failed": row.hosts_failed,
+                "prism_validation": row.prism_validation,
+                "guest_validation": row.guest_validation,
+                "artifact_sha256": row.artifact_sha256,
+                "evidence_reference": row.evidence_reference,
+                "summary": row.summary,
+                "recorded_at": row.recorded_at.isoformat(),
+                "provenance": (
+                    "Operator-recorded technical validation evidence. The referenced "
+                    "Ansible/Prism results are not independently verified by Migration Factory."
+                ),
+            }
+        )
+    return json.dumps(data, indent=2, sort_keys=True).encode("utf-8")
+
+
 def _estate(db: Session):
     workloads = list(
         db.scalars(
@@ -94,7 +123,14 @@ def _estate(db: Session):
             select(MigrationExecution).order_by(MigrationExecution.created_at)
         )
     )
-    return workloads, clusters, approvals, dependencies, executions
+    validations = list(
+        db.scalars(
+            select(TechnicalValidationRecord).order_by(
+                TechnicalValidationRecord.recorded_at
+            )
+        )
+    )
+    return workloads, clusters, approvals, dependencies, executions, validations
 
 
 @router.get("/migration-plan.csv")
@@ -118,13 +154,14 @@ def migration_plan_csv(db: Session = Depends(get_db)):
 
 @router.get("/implementation-report.pdf")
 def implementation_report_pdf(db: Session = Depends(get_db)):
-    workloads, clusters, approvals, dependencies, executions = _estate(db)
+    workloads, clusters, approvals, dependencies, executions, validations = _estate(db)
     pdf = build_implementation_report(
         workloads,
         clusters,
         approvals,
         dependencies,
         executions,
+        validations,
     )
     return Response(
         content=pdf,
@@ -147,17 +184,20 @@ def evidence_bundle_zip(db: Session = Depends(get_db)):
     )
     migration_csv = _migration_plan_csv_bytes(workloads)
     execution_json = _execution_json_bytes(executions)
+    validation_json = _technical_validation_json_bytes(validations)
 
     bundle = build_evidence_bundle(
         implementation_pdf=pdf,
         migration_plan_csv=migration_csv,
         executions_json=execution_json,
+        technical_validations_json=validation_json,
         metadata={
             "workloads": len(workloads),
             "target_clusters": len(clusters),
             "approvals": len(approvals),
             "dependencies": len(dependencies),
             "executions": len(executions),
+            "technical_validations": len(validations),
         },
     )
     return Response(
