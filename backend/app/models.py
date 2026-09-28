@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 
@@ -34,4 +34,29 @@ class Workload(Base):
     migration_risk: Mapped[str | None] = mapped_column(String(32), nullable=True)
     migration_reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
     wave_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TargetCluster(Base):
+    __tablename__ = "target_clusters"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    prism_ext_id: Mapped[str] = mapped_column(String(255), default="", index=True)
+    physical_cpu_cores: Mapped[int] = mapped_column(Integer, default=1)
+    cpu_overcommit_ratio: Mapped[float] = mapped_column(Float, default=4.0)
+    allocated_vcpu: Mapped[int] = mapped_column(Integer, default=0)
+    total_memory_gb: Mapped[float] = mapped_column(Float, default=1)
+    used_memory_gb: Mapped[float] = mapped_column(Float, default=0)
+    usable_storage_gb: Mapped[float] = mapped_column(Float, default=1)
+    used_storage_gb: Mapped[float] = mapped_column(Float, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PlanningAudit(Base):
+    __tablename__ = "planning_audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    entity: Mapped[str] = mapped_column(String(255), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
