@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   API, applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, evaluateWaveCapacity,
-  getApprovals, getDependencies, getDependencyGraph, getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
+  getApprovals, getDependencies, getDependencyGraph, getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
   reconcilePrismClusters, requestWaveApproval, updateTargetCluster, uploadInventory
 } from './api'
 
@@ -76,6 +76,7 @@ export default function App(){
   const [decidedBy,setDecidedBy]=useState('change.manager')
   const [dependencies,setDependencies]=useState<any[]>([])
   const [dependencyGraph,setDependencyGraph]=useState<any|null>(null)
+  const [optimizerResult,setOptimizerResult]=useState<any|null>(null)
   const [upstreamId,setUpstreamId]=useState(0)
   const [downstreamId,setDownstreamId]=useState(0)
 
@@ -107,7 +108,7 @@ export default function App(){
   const upload=async(e:any)=>{
     const f=e.target.files?.[0]
     if(f){
-      setReadiness(null); setRunbook(null); setCapacity(null); setDependencies([]); setDependencyGraph(null)
+      setReadiness(null); setRunbook(null); setCapacity(null); setDependencies([]); setDependencyGraph(null); setOptimizerResult(null)
       await act(()=>uploadInventory(f),`Imported ${f.name}`)
       await refreshApprovals().catch(()=>{})
       await refreshDependencies().catch(()=>{})
@@ -125,6 +126,17 @@ export default function App(){
       .filter(x=>x.source && x.target)
     if(!rules.length){setMessage('Add at least one source=target mapping rule');return}
     await act(()=>applyNetworkMapping(rules),`Applied ${rules.length} network mapping rule(s)`)
+  }
+
+  const runOptimizer=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      const result=await optimizeWaves()
+      setOptimizerResult(result)
+      await refresh()
+      setMessage(`Optimized ${result.waves.length} migration wave(s) using ${result.strategy}`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
   }
 
   const checkReadiness=async()=>{
@@ -243,7 +255,8 @@ export default function App(){
     <section className="actions">
       <label className="button primary"><FileUp size={17}/> Import RVTools <input type="file" accept=".csv,.xlsx,.xlsm" onChange={upload}/></label>
       <button className="button" disabled={busy||!rows.length} onClick={()=>act(assess,'Assessment complete')}><ShieldAlert size={17}/> Assess</button>
-      <button className="button" disabled={busy||!rows.length} onClick={()=>act(planWaves,'Migration waves generated')}><Layers3 size={17}/> Plan waves</button>
+      <button className="button" disabled={busy||!rows.length} onClick={()=>act(planWaves,'Basic migration waves generated')}><Layers3 size={17}/> Basic plan</button>
+      <button className="button primary" disabled={busy||!rows.length} onClick={runOptimizer}><Layers3 size={17}/> Optimize waves</button>
       <button className="button" disabled={busy||!rows.length} onClick={checkReadiness}><ClipboardCheck size={17}/> Readiness</button>
       <a className="button" href={`${API}/api/v1/reports/migration-plan.csv`}><Database size={17}/> Export CSV</a>
       <a className="button" href={`${API}/api/v1/reports/implementation-report.pdf`}><FileText size={17}/> Implementation PDF</a>
@@ -259,6 +272,20 @@ export default function App(){
       <Stat label="Waves" value={stats.waves}/>
       <Stat label="High complexity" value={stats.high}/>
     </section>
+
+    {optimizerResult && <section className="panel optimizerPanel">
+      <div className="panelHead">
+        <div><h2><Layers3 size={18}/> Dependency-aware wave optimizer</h2><p>Strategy: {optimizerResult.strategy} · constraints: {optimizerResult.constraints.max_vms} VMs / {optimizerResult.constraints.max_vcpu} vCPU / {optimizerResult.constraints.max_memory_gb} GB RAM / {optimizerResult.constraints.max_storage_gb} GB storage per wave.</p></div>
+      </div>
+      <div className="waveCards">
+        {optimizerResult.waves.map((w:any)=><div className="waveCard" key={w.wave}>
+          <div className="waveCardTop"><strong>Wave {w.wave}</strong><span>{w.vms} VMs</span></div>
+          <div className="waveNumbers"><span>{w.vcpu} vCPU</span><span>{w.memory_gb} GB RAM</span><span>{Math.round(w.storage_gb/1024*10)/10} TB</span></div>
+          <p>{w.workload_names.join(', ')}</p>
+          {w.warnings?.map((x:string,i:number)=><div className="waveWarning" key={i}>{x}</div>)}
+        </div>)}
+      </div>
+    </section>}
 
     <section className="planningGrid">
       <div className="panel planningPanel">
