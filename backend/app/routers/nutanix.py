@@ -104,10 +104,7 @@ def network_reconcile(
     )
 
     def run():
-        snapshot = _client()._list_all(
-            "/api/networking/v4.0/config/subnets",
-            max_items=max_items,
-        )
+        snapshot = _client().list_all_subnets(max_items=max_items)
         normalized = normalize_subnets(snapshot)
         results = reconcile_target_networks(target_names, normalized)
         return NetworkReconciliationResponse(
