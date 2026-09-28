@@ -17,6 +17,7 @@ from ..models import (
 )
 from ..services.evidence_bundle import build_evidence_bundle
 from ..services.implementation_report import build_implementation_report
+from ..services.terraform_export import build_terraform_pack
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
@@ -163,5 +164,27 @@ def evidence_bundle_zip(db: Session = Depends(get_db)):
         media_type="application/zip",
         headers={
             "Content-Disposition": "attachment; filename=nutanix-migration-evidence-bundle.zip"
+        },
+    )
+
+
+@router.get("/terraform-pack.zip")
+def terraform_pack_zip(db: Session = Depends(get_db)):
+    workloads = list(
+        db.scalars(
+            select(Workload).order_by(
+                Workload.wave_number,
+                Workload.app_group,
+                Workload.name,
+            )
+        )
+    )
+    clusters = list(db.scalars(select(TargetCluster).order_by(TargetCluster.name)))
+    bundle = build_terraform_pack(workloads, clusters)
+    return Response(
+        content=bundle,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=nutanix-terraform-pack.zip"
         },
     )

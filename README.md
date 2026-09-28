@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.5 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.6 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -440,6 +440,47 @@ manifest.json
 
 `manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
 
+## Terraform / Infrastructure as Code export
+
+Migration Factory can generate a **reviewable Nutanix Terraform pack** from the current normalized estate:
+
+```text
+GET /api/v1/reports/terraform-pack.zip
+```
+
+The pack contains:
+
+```text
+README.md
+versions.tf
+provider.tf
+variables.tf
+locals.tf
+planned_vms.tf
+outputs.tf
+terraform.tfvars.example
+inventory.json
+manifest.json
+```
+
+The generated configuration targets the official `nutanix/nutanix` provider 2.4.x family and uses `nutanix_virtual_machine_v2`. The provider configuration uses Prism Central endpoint + API-key authentication.
+
+### Safety boundary
+
+`enable_vm_creation` defaults to **false**.
+
+Migration Factory does not treat Terraform as a replacement for Nutanix Move. The VM resource scaffold is intended for code review, approved rebuild/greenfield scenarios, and demonstrating how normalized migration data maps into IaC. It deliberately does not infer boot disks, images, storage containers, IP addresses, guest customization, or application data.
+
+CI generates a representative pack and executes:
+
+```bash
+terraform fmt -check
+terraform init -backend=false
+terraform validate
+```
+
+This means the exported HCL is continuously schema-validated against the declared Terraform provider surface, while any real `terraform apply` remains a separately approved action in an authorized Nutanix environment.
+
 ## Live Prism Central discovery
 
 
@@ -512,6 +553,21 @@ This repository is genuine engineering work, but production Nutanix implementati
 8. Publish sanitized operational evidence and handover material.
 
 ## Roadmap
+
+### v0.6
+- [x] generated Nutanix Terraform pack
+- [x] official `nutanix/nutanix` provider declaration
+- [x] `nutanix_virtual_machine_v2` planning scaffold
+- [x] API-key based provider configuration
+- [x] VM creation safety gate defaults to disabled
+- [x] subnet-extId mapping input
+- [x] workload inventory + SHA-256 manifest
+- [x] authenticated Terraform ZIP download in React
+- [x] CI `terraform fmt/init/validate`
+- [ ] validate generated plan against an authorized Prism Central environment
+- [ ] add reviewed disk/image/storage-container mapping workflow
+- [ ] add Ansible post-migration validation export
+
 
 ### v0.2
 - [x] network mapping engine
