@@ -108,3 +108,22 @@ class MigrationExecution(Base):
     evidence_reference: Mapped[str] = mapped_column(String(512), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+
+class TechnicalValidationRecord(Base):
+    __tablename__ = "technical_validation_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    execution_id: Mapped[int] = mapped_column(ForeignKey("migration_executions.id"), index=True)
+    tool: Mapped[str] = mapped_column(String(64), default="Ansible")
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    actor: Mapped[str] = mapped_column(String(255))
+    hosts_total: Mapped[int] = mapped_column(Integer, default=0)
+    hosts_passed: Mapped[int] = mapped_column(Integer, default=0)
+    hosts_failed: Mapped[int] = mapped_column(Integer, default=0)
+    prism_validation: Mapped[str] = mapped_column(String(32), default="NotRun")
+    guest_validation: Mapped[str] = mapped_column(String(32), default="NotRun")
+    artifact_sha256: Mapped[str] = mapped_column(String(64), default="")
+    evidence_reference: Mapped[str] = mapped_column(String(512), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
