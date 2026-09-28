@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -134,3 +135,33 @@ class PrismReconciliationResponse(BaseModel):
     matched: int
     unmatched: int
     results: list[PrismClusterReconciliation]
+
+
+class ApprovalRequest(BaseModel):
+    target_cluster_id: int
+    requested_by: str = Field(min_length=1)
+    change_ticket: str = ""
+    notes: str = ""
+    headroom_percent: float = Field(default=20.0, ge=0, le=50)
+
+
+class ApprovalDecision(BaseModel):
+    decision: str
+    decided_by: str = Field(min_length=1)
+    notes: str = ""
+
+
+class ApprovalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    wave_number: int
+    target_cluster_id: int
+    status: str
+    requested_by: str
+    requested_at: datetime
+    decided_by: str
+    decided_at: datetime | None
+    change_ticket: str
+    notes: str
+    decision_notes: str
+    headroom_percent: float
