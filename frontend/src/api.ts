@@ -211,3 +211,16 @@ export async function recordTechnicalValidation(executionId:number, payload:any)
 export async function getExecutionTechnicalValidations(executionId:number){
   return jsonOrThrow(await apiFetch(`/api/v1/validation/executions/${executionId}`))
 }
+
+
+export async function getPrismEvidenceSnapshots(){
+  return jsonOrThrow(await apiFetch('/api/v1/nutanix/evidence-snapshots'))
+}
+
+export async function capturePrismEvidence(payload:any, maxItems=1000){
+  return jsonOrThrow(await apiFetch(`/api/v1/nutanix/evidence-snapshots?max_items=${maxItems}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
