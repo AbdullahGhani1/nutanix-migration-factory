@@ -1,5 +1,4 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorkloadOut(BaseModel):
@@ -41,3 +40,35 @@ class AssessmentSummary(BaseModel):
 class WaveSummary(BaseModel):
     waves: int
     workloads: int
+
+
+class NetworkMappingRule(BaseModel):
+    source: str = Field(min_length=1)
+    target: str = Field(min_length=1)
+    description: str | None = None
+
+
+class NetworkMappingRequest(BaseModel):
+    rules: list[NetworkMappingRule]
+
+
+class NetworkMappingResponse(BaseModel):
+    total: int
+    mapped: int
+    unmapped: int
+
+
+class ReadinessWorkload(BaseModel):
+    workload_id: int
+    name: str
+    status: str
+    blockers: list[str]
+    warnings: list[str]
+
+
+class ReadinessResponse(BaseModel):
+    total: int
+    ready: int
+    ready_with_warnings: int
+    blocked: int
+    workloads: list[ReadinessWorkload]
