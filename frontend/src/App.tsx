@@ -375,6 +375,7 @@ export default function App(){
       <button className="button" disabled={busy||!rows.length} onClick={checkReadiness}><ClipboardCheck size={17}/> Readiness</button>
       <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/migration-plan.csv','migration-plan.csv')}><Database size={17}/> Export CSV</button>
       <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/implementation-report.pdf','nutanix-implementation-report.pdf')}><FileText size={17}/> Implementation PDF</button>
+      <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/evidence-bundle.zip','nutanix-migration-evidence-bundle.zip')}><Database size={17}/> Evidence bundle</button>
     </section>
 
     {message && <div className="notice">{message}</div>}
