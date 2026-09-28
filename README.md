@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.4 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.5 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -32,6 +32,9 @@ This repository implements that workflow as software.
 - Explicit workload dependency graph with cycle prevention
 - Dependency-aware service start/stop sequencing in wave runbooks
 - Downloadable implementation-planning PDF report
+- Migration execution evidence workflow gated by an approved change request
+- Execution state machine: Planned → InProgress → Succeeded / RolledBack / Failed
+- Measured cutover duration, UAT status, rollback reason and evidence references
 - Dependency-aware wave optimizer with CPU/RAM/storage/VM constraints
 - Pilot-first or risk-first migration sequencing strategies
 - Optional service-key RBAC for self-hosted/private deployments
@@ -359,7 +362,67 @@ Grafana:    http://localhost:3000
 
 Change the Grafana development password before using the stack outside a local environment.
 
+## Migration execution evidence
+
+Planning is not the same as execution. v0.5 adds an explicit evidence lifecycle that can only begin from an **Approved** migration request.
+
+```text
+Approved change
+    ↓
+Execution record: Planned
+    ↓
+Start: InProgress
+    ↓
+Succeeded | RolledBack | Failed
+```
+
+A successful record requires:
+- measured cutover duration
+- UAT status of `Passed` or `Conditional`
+- a validation summary
+
+A rollback requires an explicit rollback reason. The record may also store the Nutanix Move plan name, change ticket, operator and a sanitized evidence reference.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/executions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "approval_id": 1,
+    "operator": "migration.engineer",
+    "move_plan_name": "ERP-WAVE-01",
+    "evidence_reference": "CHG-2026-0042"
+  }'
+```
+
+Then start it:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/executions/1/transition \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","actor":"migration.engineer"}'
+```
+
+And only after the real cutover, record measured results:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/executions/1/transition \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action":"complete",
+    "actor":"migration.engineer",
+    "cutover_duration_minutes":12,
+    "uat_status":"Passed",
+    "validation_summary":"Guest boot, DNS and application smoke tests passed.",
+    "evidence_reference":"CHG-2026-0042"
+  }'
+```
+
+The execution record is **operator-entered evidence**. Migration Factory does not independently claim Nutanix Move executed the migration; this distinction is intentional so portfolio/CV evidence remains auditable.
+
 ## Live Prism Central discovery
+
 
 The read-only connector uses the Nutanix v4 API family for clusters, AHV VMs and networking subnets.
 
@@ -442,6 +505,18 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] migration approval/audit workflow
 - [x] approval dashboard
 - [x] persistent target-cluster update/edit workflow
+
+### v0.5
+- [x] approved-change → migration execution record
+- [x] explicit execution state machine
+- [x] measured cutover duration
+- [x] UAT / validation evidence
+- [x] rollback outcome and reason
+- [x] evidence-reference field
+- [x] execution evidence in implementation PDF
+- [x] execution dashboard
+- [x] Alembic execution-evidence migration
+- [ ] execute an authorized Nutanix Move pilot and populate a real execution record
 
 ### v0.4
 - [x] Prism connection-test endpoint
