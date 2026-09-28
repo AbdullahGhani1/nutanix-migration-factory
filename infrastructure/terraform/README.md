@@ -17,6 +17,7 @@ The ZIP contains:
 - `provider.tf`
 - `variables.tf`
 - `locals.tf`
+- `workloads.json`
 - `planned_vms.tf`
 - `outputs.tf`
 - `terraform.tfvars.example`
