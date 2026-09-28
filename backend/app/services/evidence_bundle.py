@@ -17,6 +17,7 @@ def build_evidence_bundle(
     migration_plan_csv: bytes,
     executions_json: bytes,
     technical_validations_json: bytes | None = None,
+    prism_environment_evidence_json: bytes | None = None,
     metadata: dict | None = None,
 ) -> bytes:
     """Package migration artifacts with a SHA-256 manifest.
@@ -31,14 +32,16 @@ def build_evidence_bundle(
     }
     if technical_validations_json is not None:
         files["technical-validations.json"] = technical_validations_json
+    if prism_environment_evidence_json is not None:
+        files["prism-environment-evidence.json"] = prism_environment_evidence_json
 
     manifest = {
-        "schema": "nutanix-migration-factory-evidence-bundle/v2",
+        "schema": "nutanix-migration-factory-evidence-bundle/v3",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provenance": (
-            "Artifacts exported from Migration Factory. Execution and technical validation "
-            "evidence may contain operator-entered measurements and references "
-            "and is not independently verified by the application."
+            "Artifacts exported from Migration Factory. Prism environment snapshots are captured "
+            "through the configured read-only connector; execution and technical validation "
+            "records may contain operator-entered measurements and references."
         ),
         "metadata": metadata or {},
         "files": {

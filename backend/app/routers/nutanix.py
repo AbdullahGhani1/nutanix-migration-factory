@@ -1,14 +1,19 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Workload
+from ..models import PlanningAudit, PrismEnvironmentEvidence, Workload
 from ..schemas import (
     NetworkReconciliationItem,
     NetworkReconciliationResponse,
     PrismEnvironmentSummary,
+    PrismEnvironmentEvidenceOut,
+    PrismEvidenceCaptureRequest,
 )
+from ..services.prism_evidence import build_prism_environment_evidence
 from ..services.nutanix import (
     NutanixClient,
     NutanixNotConfigured,
@@ -116,3 +121,84 @@ def network_reconcile(
         )
 
     return _prism_call(run)
+
+
+
+@router.get("/evidence-snapshots", response_model=list[PrismEnvironmentEvidenceOut])
+def list_environment_evidence(db: Session = Depends(get_db)):
+    return list(
+        db.scalars(
+            select(PrismEnvironmentEvidence).order_by(
+                PrismEnvironmentEvidence.captured_at.desc()
+            )
+        )
+    )
+
+
+@router.post("/evidence-snapshots", response_model=PrismEnvironmentEvidenceOut)
+def capture_environment_evidence(
+    payload: PrismEvidenceCaptureRequest,
+    max_items: int = Query(1000, ge=1, le=10000),
+    db: Session = Depends(get_db),
+):
+    target_names = list(
+        db.scalars(
+            select(Workload.target_network)
+            .where(Workload.target_network != "")
+            .distinct()
+        )
+    )
+
+    snapshot = _prism_call(
+        lambda: _client().inventory_snapshot(max_items=max_items)
+    )
+    evidence = build_prism_environment_evidence(snapshot, target_names)
+
+    record = PrismEnvironmentEvidence(
+        status=evidence["status"],
+        actor=payload.actor.strip(),
+        clusters=evidence["clusters"],
+        vms=evidence["vms"],
+        subnets=evidence["subnets"],
+        target_networks=evidence["target_networks"],
+        matched_networks=evidence["matched_networks"],
+        missing_networks=evidence["missing_networks"],
+        ambiguous_networks=evidence["ambiguous_networks"],
+        cluster_inventory_truncated=evidence["cluster_inventory_truncated"],
+        vm_inventory_truncated=evidence["vm_inventory_truncated"],
+        subnet_inventory_truncated=evidence["subnet_inventory_truncated"],
+        snapshot_sha256=evidence["snapshot_sha256"],
+        warnings_json=json.dumps(evidence["warnings"], sort_keys=True),
+        network_reconciliation_json=json.dumps(
+            evidence["network_reconciliation"],
+            sort_keys=True,
+        ),
+        evidence_reference=payload.evidence_reference.strip(),
+    )
+    db.add(record)
+    db.flush()
+    db.add(
+        PlanningAudit(
+            event_type="prism_evidence.captured",
+            entity=f"prism_evidence:{record.id}",
+            detail=json.dumps(
+                {
+                    "status": record.status,
+                    "actor": record.actor,
+                    "clusters": record.clusters,
+                    "vms": record.vms,
+                    "subnets": record.subnets,
+                    "target_networks": record.target_networks,
+                    "matched_networks": record.matched_networks,
+                    "missing_networks": record.missing_networks,
+                    "ambiguous_networks": record.ambiguous_networks,
+                    "snapshot_sha256": record.snapshot_sha256,
+                    "evidence_reference": record.evidence_reference,
+                },
+                sort_keys=True,
+            ),
+        )
+    )
+    db.commit()
+    db.refresh(record)
+    return record

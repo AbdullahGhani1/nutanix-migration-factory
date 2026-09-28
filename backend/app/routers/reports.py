@@ -11,6 +11,7 @@ from ..db import get_db
 from ..models import (
     MigrationApproval,
     MigrationExecution,
+    PrismEnvironmentEvidence,
     TargetCluster,
     TechnicalValidationRecord,
     Workload,
@@ -65,6 +66,36 @@ def _execution_json_bytes(executions: list[MigrationExecution]) -> bytes:
                 "notes": e.notes,
                 "created_at": e.created_at.isoformat(),
                 "provenance": "Operator-entered execution evidence; not independently verified by Migration Factory.",
+            }
+        )
+    return json.dumps(data, indent=2, sort_keys=True).encode("utf-8")
+
+
+def _prism_environment_evidence_json_bytes(records: list[PrismEnvironmentEvidence]) -> bytes:
+    data = []
+    for row in records:
+        data.append(
+            {
+                "id": row.id,
+                "status": row.status,
+                "actor": row.actor,
+                "clusters": row.clusters,
+                "vms": row.vms,
+                "subnets": row.subnets,
+                "target_networks": row.target_networks,
+                "matched_networks": row.matched_networks,
+                "missing_networks": row.missing_networks,
+                "ambiguous_networks": row.ambiguous_networks,
+                "cluster_inventory_truncated": row.cluster_inventory_truncated,
+                "vm_inventory_truncated": row.vm_inventory_truncated,
+                "subnet_inventory_truncated": row.subnet_inventory_truncated,
+                "snapshot_sha256": row.snapshot_sha256,
+                "evidence_reference": row.evidence_reference,
+                "captured_at": row.captured_at.isoformat(),
+                "provenance": (
+                    "Captured through the configured read-only Prism Central API connector. "
+                    "This does not certify workload supportability or production sizing."
+                ),
             }
         )
     return json.dumps(data, indent=2, sort_keys=True).encode("utf-8")
@@ -131,7 +162,14 @@ def _estate(db: Session):
             )
         )
     )
-    return workloads, clusters, approvals, dependencies, executions, validations
+    prism_evidence = list(
+        db.scalars(
+            select(PrismEnvironmentEvidence).order_by(
+                PrismEnvironmentEvidence.captured_at
+            )
+        )
+    )
+    return workloads, clusters, approvals, dependencies, executions, validations, prism_evidence
 
 
 @router.get("/migration-plan.csv")
@@ -155,7 +193,7 @@ def migration_plan_csv(db: Session = Depends(get_db)):
 
 @router.get("/implementation-report.pdf")
 def implementation_report_pdf(db: Session = Depends(get_db)):
-    workloads, clusters, approvals, dependencies, executions, validations = _estate(db)
+    workloads, clusters, approvals, dependencies, executions, validations, prism_evidence = _estate(db)
     pdf = build_implementation_report(
         workloads,
         clusters,
@@ -163,6 +201,7 @@ def implementation_report_pdf(db: Session = Depends(get_db)):
         dependencies,
         executions,
         validations,
+        prism_evidence,
     )
     return Response(
         content=pdf,
@@ -175,7 +214,7 @@ def implementation_report_pdf(db: Session = Depends(get_db)):
 
 @router.get("/evidence-bundle.zip")
 def evidence_bundle_zip(db: Session = Depends(get_db)):
-    workloads, clusters, approvals, dependencies, executions, validations = _estate(db)
+    workloads, clusters, approvals, dependencies, executions, validations, prism_evidence = _estate(db)
     pdf = build_implementation_report(
         workloads,
         clusters,
@@ -187,12 +226,14 @@ def evidence_bundle_zip(db: Session = Depends(get_db)):
     migration_csv = _migration_plan_csv_bytes(workloads)
     execution_json = _execution_json_bytes(executions)
     validation_json = _technical_validation_json_bytes(validations)
+    prism_json = _prism_environment_evidence_json_bytes(prism_evidence)
 
     bundle = build_evidence_bundle(
         implementation_pdf=pdf,
         migration_plan_csv=migration_csv,
         executions_json=execution_json,
         technical_validations_json=validation_json,
+        prism_environment_evidence_json=prism_json,
         metadata={
             "workloads": len(workloads),
             "target_clusters": len(clusters),
@@ -200,6 +241,7 @@ def evidence_bundle_zip(db: Session = Depends(get_db)):
             "dependencies": len(dependencies),
             "executions": len(executions),
             "technical_validations": len(validations),
+            "prism_environment_evidence": len(prism_evidence),
         },
     )
     return Response(
@@ -283,6 +325,11 @@ def approval_cab_package_zip(approval_id: int, db: Session = Depends(get_db)):
         )
 
     dependencies = list(db.scalars(select(WorkloadDependency).order_by(WorkloadDependency.id)))
+    prism_evidence = db.scalar(
+        select(PrismEnvironmentEvidence).order_by(
+            PrismEnvironmentEvidence.captured_at.desc()
+        )
+    )
     execution = db.scalar(
         select(MigrationExecution).where(MigrationExecution.approval_id == approval.id)
     )
@@ -304,6 +351,7 @@ def approval_cab_package_zip(approval_id: int, db: Session = Depends(get_db)):
             dependencies=dependencies,
             execution=execution,
             validations=validations,
+            prism_evidence=prism_evidence,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

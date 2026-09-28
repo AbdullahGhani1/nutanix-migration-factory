@@ -127,3 +127,26 @@ class TechnicalValidationRecord(Base):
     evidence_reference: Mapped[str] = mapped_column(String(512), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+
+class PrismEnvironmentEvidence(Base):
+    __tablename__ = "prism_environment_evidence"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    actor: Mapped[str] = mapped_column(String(255))
+    clusters: Mapped[int] = mapped_column(Integer, default=0)
+    vms: Mapped[int] = mapped_column(Integer, default=0)
+    subnets: Mapped[int] = mapped_column(Integer, default=0)
+    target_networks: Mapped[int] = mapped_column(Integer, default=0)
+    matched_networks: Mapped[int] = mapped_column(Integer, default=0)
+    missing_networks: Mapped[int] = mapped_column(Integer, default=0)
+    ambiguous_networks: Mapped[int] = mapped_column(Integer, default=0)
+    cluster_inventory_truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    vm_inventory_truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    subnet_inventory_truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64))
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    network_reconciliation_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_reference: Mapped[str] = mapped_column(String(512), default="")
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
