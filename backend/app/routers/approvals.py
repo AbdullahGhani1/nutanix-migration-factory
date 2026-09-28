@@ -10,6 +10,8 @@ from ..models import MigrationApproval, PlanningAudit, TargetCluster, Workload
 from ..schemas import ApprovalDecision, ApprovalOut, ApprovalRequest
 from ..services.capacity import calculate_wave_demand, evaluate_cluster
 from ..services.readiness import evaluate_workload
+from ..services.residency import evaluate_residency
+from .controls import residency_policy
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["approvals"])
 
@@ -40,6 +42,23 @@ def request_approval(
             detail={
                 "message": "Wave cannot enter approval while readiness blockers remain",
                 "blocked": [{"name": r.name, "blockers": r.blockers} for r in blocked],
+            },
+        )
+
+    policy = residency_policy()
+    residency_issues = [
+        r for r in (evaluate_residency(w, target, None, policy) for w in workloads) if r.status != "Compliant"
+    ]
+    if residency_issues:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Selected target cluster does not satisfy the data residency policy",
+                "cluster": target.name,
+                "workloads": [
+                    {"name": r.name, "status": r.status, "issues": r.violations or [x for x in r.warnings if "country_code" in x]}
+                    for r in residency_issues
+                ],
             },
         )
 

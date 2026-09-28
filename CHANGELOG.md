@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 — in development
+
+- Added data classification, residency override, RPO and RTO workload fields with RVTools column aliases
+- Added target-cluster country code and site name
+- Added configurable data residency policy (`RESIDENCY_POLICY_JSON`) with a conservative UAE default
+- Added residency evaluation for primary and DR clusters (`POST /api/v1/controls/residency`)
+- Migration approval requests are now rejected when the target cluster violates, or cannot verify, residency
+- Added DR protection planner (`POST /api/v1/controls/dr-plan`): Synchronous / NearSync / Async selection, protection-policy grouping, category tags, replication bandwidth estimate and RTT check
+- Added GST change-calendar scheduler (`POST /api/v1/controls/change-calendar/schedule`) with blackout and restricted periods and hypercare gaps
+- Added UAE enterprise controls dashboard panel
+- Added example UAE change calendar and extended the RVTools sample
+- Added Alembic revision 0003
+- Bumped API service version to 0.6.0
+
 ## 0.5.0 — in development
 
 - Added migration execution records linked to approved change requests

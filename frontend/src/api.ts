@@ -194,3 +194,23 @@ export async function transitionExecution(id:number, payload:any){
 export async function getExecutionEvidence(id:number){
   return jsonOrThrow(await apiFetch(`/api/v1/executions/${id}/evidence`))
 }
+
+async function postJson(path:string, payload:any){
+  return jsonOrThrow(await apiFetch(path, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function checkResidency(payload:{cluster_id:number; dr_cluster_id?:number|null; wave?:number|null}){
+  return postJson('/api/v1/controls/residency', payload)
+}
+
+export async function planDisasterRecovery(payload:any){
+  return postJson('/api/v1/controls/dr-plan', payload)
+}
+
+export async function scheduleChangeCalendar(payload:any){
+  return postJson('/api/v1/controls/change-calendar/schedule', payload)
+}

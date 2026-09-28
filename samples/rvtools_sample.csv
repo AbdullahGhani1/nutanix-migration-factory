@@ -1,6 +1,6 @@
-Name,CPUs,Memory MiB,Provisioned MiB,OS according to config file,Network #1,Powerstate,Snapshots,NIC Count,Criticality,Downtime Minutes,App Group,Target Network,Owner
-ERP-DB-01,16,65536,1536000,Red Hat Enterprise Linux 9,VLAN121,poweredOn,2,2,Critical,15,ERP,AHV-PROD-DB,ERP Team
-ERP-APP-01,8,32768,512000,Windows Server 2022,VLAN120,poweredOn,1,2,High,30,ERP,AHV-PROD-APP,ERP Team
-WEB-01,4,8192,102400,Ubuntu Linux 24.04,VLAN130,poweredOn,0,1,Medium,60,Web,AHV-WEB,Digital Team
-WEB-02,4,8192,102400,Ubuntu Linux 24.04,VLAN130,poweredOn,0,1,Medium,60,Web,AHV-WEB,Digital Team
-LEGACY-APP-01,20,131072,3072000,Legacy Appliance OS,VLAN140,poweredOn,8,5,High,20,Legacy,AHV-LEGACY,Infrastructure
+Name,CPUs,Memory MiB,Provisioned MiB,OS according to config file,Network #1,Powerstate,Snapshots,NIC Count,Criticality,Downtime Minutes,App Group,Target Network,Owner,Data Classification,Residency,RPO Minutes,RTO Minutes
+ERP-DB-01,16,65536,1536000,Red Hat Enterprise Linux 9,VLAN121,poweredOn,2,2,Critical,15,ERP,AHV-PROD-DB,ERP Team,Confidential,,15,60
+ERP-APP-01,8,32768,512000,Windows Server 2022,VLAN120,poweredOn,1,2,High,30,ERP,AHV-PROD-APP,ERP Team,Confidential,,60,240
+WEB-01,4,8192,102400,Ubuntu Linux 24.04,VLAN130,poweredOn,0,1,Medium,60,Web,AHV-WEB,Digital Team,Public,,,
+WEB-02,4,8192,102400,Ubuntu Linux 24.04,VLAN130,poweredOn,0,1,Medium,60,Web,AHV-WEB,Digital Team,Public,,,
+LEGACY-APP-01,20,131072,3072000,Legacy Appliance OS,VLAN140,poweredOn,8,5,High,20,Legacy,AHV-LEGACY,Infrastructure,Secret,AE,240,480

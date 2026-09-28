@@ -83,6 +83,8 @@ def update_target_cluster(
     before = {
         "name": cluster.name,
         "prism_ext_id": cluster.prism_ext_id,
+        "country_code": cluster.country_code,
+        "site_name": cluster.site_name,
         "physical_cpu_cores": cluster.physical_cpu_cores,
         "cpu_overcommit_ratio": cluster.cpu_overcommit_ratio,
         "allocated_vcpu": cluster.allocated_vcpu,

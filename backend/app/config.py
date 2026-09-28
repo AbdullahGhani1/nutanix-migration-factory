@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     approver_api_key_sha256: str = ""
     admin_api_key_sha256: str = ""
 
+    # JSON map of data classification -> allowed ISO country codes (or null for
+    # unrestricted). Empty uses the built-in conservative UAE default.
+    residency_policy_json: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

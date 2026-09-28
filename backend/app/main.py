@@ -6,18 +6,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .observability import ObservabilityMiddleware
 from .security import ServiceKeyRBACMiddleware
-from .routers import approvals, assessments, capacity, dependencies, executions, imports, nutanix, operations, optimizer, planning, reports, waves, workloads
+from .routers import approvals, assessments, capacity, controls, dependencies, executions, imports, nutanix, operations, optimizer, planning, reports, waves, workloads
 
 settings = get_settings()
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 app = FastAPI(
     title="Nutanix Migration Factory API",
-    version="0.5.0",
+    version="0.6.0",
     description=(
         "VMware-to-Nutanix migration inventory, complexity assessment, network mapping, "
         "readiness control, AHV target capacity planning, governance/approvals, dependency-aware "
-        "wave optimization, execution evidence, runbook generation, reporting, observability and Prism Central discovery."
+        "wave optimization, execution evidence, runbook generation, reporting, observability, Prism Central discovery, data residency, DR protection planning and change-calendar scheduling."
     ),
 )
 app.add_middleware(
@@ -40,6 +40,7 @@ app.include_router(capacity.router)
 app.include_router(approvals.router)
 app.include_router(dependencies.router)
 app.include_router(executions.router)
+app.include_router(controls.router)
 app.include_router(reports.router)
 app.include_router(nutanix.router)
 app.include_router(operations.router)
@@ -50,6 +51,6 @@ def health():
     return {
         "status": "ok",
         "service": "nutanix-migration-factory",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "auth_enabled": settings.auth_enabled,
     }

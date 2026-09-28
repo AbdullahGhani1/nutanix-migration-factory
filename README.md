@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.5 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.6 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, data residency controls, DR protection planning, change-calendar scheduling, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -38,6 +38,10 @@ This repository implements that workflow as software.
 - ZIP evidence bundle with PDF, CSV, execution JSON and SHA-256 integrity manifest
 - Dependency-aware wave optimizer with CPU/RAM/storage/VM constraints
 - Pilot-first or risk-first migration sequencing strategies
+- Data classification + data residency gate (primary and DR placement, configurable policy, default: Confidential/Secret stay in AE)
+- Residency enforced in the migration approval workflow
+- DR protection planner: RPO/RTO → Synchronous / NearSync / Async, protection-policy grouping, category tags, replication bandwidth and inter-site RTT checks
+- Change-calendar scheduler in Gulf Standard Time with blackout and restricted periods (National Day, Ramadan, Eid, year-end freeze) and hypercare gaps
 - Optional service-key RBAC for self-hosted/private deployments
 - Prometheus metrics, request correlation and structured HTTP logs
 - Optional Prometheus + Grafana Docker Compose observability profile
@@ -440,6 +444,31 @@ manifest.json
 
 `manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
 
+## UAE enterprise controls
+
+Controls that UAE infrastructure teams apply before any cutover is approved. See
+[docs/UAE_ENTERPRISE_CONTROLS.md](docs/UAE_ENTERPRISE_CONTROLS.md) for the full design.
+
+Inventory columns (all optional): `Data Classification`, `Residency`, `RPO Minutes`, `RTO Minutes`.
+Target clusters take `country_code` (ISO alpha-2) and `site_name`.
+
+```bash
+# Data residency: primary + DR placement against the classification policy
+curl -X POST http://localhost:8000/api/v1/controls/residency \
+  -H "Content-Type: application/json" \
+  -d '{"cluster_id": 1, "dr_cluster_id": 2, "wave": 1}'
+
+# DR protection policies, bandwidth and RTT checks
+curl -X POST http://localhost:8000/api/v1/controls/dr-plan \
+  -H "Content-Type: application/json" \
+  -d '{"primary_cluster_id": 1, "dr_cluster_id": 2, "site_rtt_ms": 2.5, "available_bandwidth_mbps": 1000}'
+
+# Wave schedule in GST around blackout / restricted periods
+curl -X POST http://localhost:8000/api/v1/controls/change-calendar/schedule \
+  -H "Content-Type: application/json" \
+  -d @samples/uae_change_calendar_2026_2027.json
+```
+
 ## Live Prism Central discovery
 
 
@@ -524,6 +553,17 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] migration approval/audit workflow
 - [x] approval dashboard
 - [x] persistent target-cluster update/edit workflow
+
+### v0.6
+- [x] data classification and residency columns in inventory import
+- [x] configurable residency policy (`RESIDENCY_POLICY_JSON`)
+- [x] residency check for primary and DR clusters
+- [x] residency enforced in the approval gate
+- [x] DR protection-policy planner with bandwidth and RTT checks
+- [x] GST change-calendar scheduler with blackout / restricted periods
+- [x] UAE enterprise controls dashboard
+- [x] Alembic revision 0003
+- [ ] create planned protection policies and recovery plans through the Prism Central v4 data-protection API
 
 ### v0.5
 - [x] approved-change → migration execution record

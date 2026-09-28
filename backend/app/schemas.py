@@ -1,5 +1,5 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import date, datetime
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WorkloadOut(BaseModel):
@@ -19,6 +19,10 @@ class WorkloadOut(BaseModel):
     downtime_minutes: int
     app_group: str
     owner: str
+    data_classification: str
+    residency: str
+    rpo_minutes: int | None
+    rto_minutes: int | None
     migration_score: int | None
     migration_risk: str | None
     migration_reasons: str | None
@@ -78,6 +82,8 @@ class ReadinessResponse(BaseModel):
 class TargetClusterIn(BaseModel):
     name: str = Field(min_length=1)
     prism_ext_id: str = ""
+    country_code: str = Field(default="", pattern=r"^([A-Za-z]{2})?$")
+    site_name: str = ""
     physical_cpu_cores: int = Field(gt=0)
     cpu_overcommit_ratio: float = Field(gt=0, le=20)
     allocated_vcpu: int = Field(ge=0)
@@ -86,6 +92,11 @@ class TargetClusterIn(BaseModel):
     usable_storage_gb: float = Field(gt=0)
     used_storage_gb: float = Field(ge=0)
     enabled: bool = True
+
+    @field_validator("country_code")
+    @classmethod
+    def _upper_country(cls, value: str) -> str:
+        return value.upper()
 
 
 class TargetClusterOut(TargetClusterIn):
@@ -267,3 +278,67 @@ class ExecutionOut(BaseModel):
     evidence_reference: str
     notes: str
     created_at: datetime
+
+
+class ResidencyRequest(BaseModel):
+    cluster_id: int
+    dr_cluster_id: int | None = None
+    wave: int | None = None
+
+
+class ResidencyWorkload(BaseModel):
+    workload_id: int
+    name: str
+    classification: str
+    allowed_countries: list[str] | None
+    status: str
+    violations: list[str]
+    warnings: list[str]
+
+
+class ResidencyResponse(BaseModel):
+    cluster: str
+    dr_cluster: str | None
+    total: int
+    compliant: int
+    unverified: int
+    violations: int
+    workloads: list[ResidencyWorkload]
+
+
+class DRPlanRequest(BaseModel):
+    wave: int | None = None
+    primary_cluster_id: int | None = None
+    dr_cluster_id: int | None = None
+    site_rtt_ms: float | None = Field(default=None, ge=0)
+    sync_max_rtt_ms: float = Field(default=5.0, gt=0)
+    daily_change_rate_percent: float = Field(default=5.0, gt=0, le=100)
+    nearsync_max_minutes: int = Field(default=15, ge=1, le=59)
+    available_bandwidth_mbps: float | None = Field(default=None, gt=0)
+    peak_factor: float = Field(default=2.0, ge=1, le=10)
+
+
+class ChangeWindowIn(BaseModel):
+    weekday: int = Field(ge=0, le=6, description="0 = Monday")
+    start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    duration_minutes: int = Field(gt=0, le=24 * 60)
+
+
+class CalendarPeriodIn(BaseModel):
+    start: date
+    end: date
+    kind: str = Field(default="blackout", pattern=r"^(blackout|restricted)$")
+    reason: str = Field(min_length=1)
+
+
+class ChangeCalendarRequest(BaseModel):
+    start_date: date
+    periods: list[CalendarPeriodIn] = []
+    windows: list[ChangeWindowIn] | None = None
+    weeks: int = Field(default=26, ge=1, le=104)
+    min_gap_days: int = Field(default=7, ge=0, le=60)
+    parallel_cutovers: int = Field(default=5, ge=1, le=50)
+    per_vm_cutover_minutes: int = Field(default=30, ge=5, le=600)
+    precheck_minutes: int = Field(default=60, ge=0, le=600)
+    validation_minutes: int = Field(default=60, ge=0, le=600)
+    rollback_reserve_minutes: int = Field(default=60, ge=0, le=600)

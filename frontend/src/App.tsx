@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Activity, CheckCircle2, ClipboardCheck, Database, FileText, FileUp, Gauge, GitBranch, Layers3, Map,
-  Server, ShieldAlert, UserCheck, Waypoints, XCircle
+  CalendarClock, LifeBuoy, Server, ShieldAlert, ShieldCheck, UserCheck, Waypoints, XCircle
 } from 'lucide-react'
 import {
-  applyNetworkMapping, assess, createDependency, createExecution, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
+  applyNetworkMapping, assess, checkResidency, createDependency, createExecution, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
   getApprovals, getDependencies, getDependencyGraph, getExecutions, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
-  getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
+  getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planDisasterRecovery, planWaves, scheduleChangeCalendar,
   reconcilePrismClusters, requestWaveApproval, setSessionApiKey, testPrismConnection, transitionExecution, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
   id:number; name:string; cpu:number; memory_gb:number; storage_gb:number; os:string;
   source_network:string; target_network:string; criticality:string; downtime_minutes:number;
-  app_group:string; owner:string; migration_score:number|null; migration_risk:string|null;
+  app_group:string; owner:string; data_classification:string; residency:string;
+  rpo_minutes:number|null; rto_minutes:number|null; migration_score:number|null; migration_risk:string|null;
   migration_reasons:string|null; wave_number:number|null;
 }
 
@@ -23,7 +24,7 @@ type Readiness = {
 }
 
 type TargetCluster = {
-  id:number; name:string; prism_ext_id:string; physical_cpu_cores:number;
+  id:number; name:string; prism_ext_id:string; country_code:string; site_name:string; physical_cpu_cores:number;
   cpu_overcommit_ratio:number; allocated_vcpu:number; total_memory_gb:number;
   used_memory_gb:number; usable_storage_gb:number; used_storage_gb:number; enabled:boolean;
 }
@@ -57,8 +58,15 @@ VLAN120=AHV-PROD-APP
 VLAN121=AHV-PROD-DB
 DEV-*=AHV-DEV`
 
+const DEFAULT_CALENDAR = `[
+  {"start":"2026-12-01","end":"2026-12-03","kind":"blackout","reason":"Commemoration Day & National Day"},
+  {"start":"2026-12-15","end":"2027-01-04","kind":"blackout","reason":"Year-end change freeze"},
+  {"start":"2027-02-08","end":"2027-03-08","kind":"restricted","reason":"Ramadan (estimated)"},
+  {"start":"2027-03-09","end":"2027-03-12","kind":"blackout","reason":"Eid al-Fitr (estimated)"}
+]`
+
 const EMPTY_CLUSTER = {
-  name:'AHV-PROD-A', prism_ext_id:'', physical_cpu_cores:64, cpu_overcommit_ratio:4,
+  name:'AHV-PROD-A', prism_ext_id:'', country_code:'AE', site_name:'DXB-DC1', physical_cpu_cores:64, cpu_overcommit_ratio:4,
   allocated_vcpu:80, total_memory_gb:1024, used_memory_gb:320,
   usable_storage_gb:20000, used_storage_gb:7000, enabled:true,
 }
@@ -99,6 +107,17 @@ export default function App(){
   const [validationSummary,setValidationSummary]=useState('')
   const [rollbackReason,setRollbackReason]=useState('')
   const [evidenceReference,setEvidenceReference]=useState('')
+  const [controlClusterId,setControlClusterId]=useState(0)
+  const [drClusterId,setDrClusterId]=useState(0)
+  const [controlWave,setControlWave]=useState('')
+  const [residency,setResidency]=useState<any|null>(null)
+  const [siteRtt,setSiteRtt]=useState('')
+  const [changeRate,setChangeRate]=useState(5)
+  const [drBandwidth,setDrBandwidth]=useState('')
+  const [drPlan,setDrPlan]=useState<any|null>(null)
+  const [calendarStart,setCalendarStart]=useState(new Date().toISOString().slice(0,10))
+  const [calendarText,setCalendarText]=useState(DEFAULT_CALENDAR)
+  const [calendar,setCalendar]=useState<any|null>(null)
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
@@ -199,6 +218,27 @@ export default function App(){
     setEditingClusterId(cluster.id)
     setClusterForm({...cluster})
   }
+
+  const runControl=async(fn:()=>Promise<void>)=>{
+    setBusy(true);setMessage('')
+    try{ await fn() }
+    catch(e:any){ setMessage(e.message) }
+    finally{ setBusy(false) }
+  }
+  const waveOrNull=()=>controlWave.trim()?+controlWave:null
+  const runResidency=()=>runControl(async()=>setResidency(await checkResidency({
+    cluster_id:controlClusterId, dr_cluster_id:drClusterId||null, wave:waveOrNull(),
+  })))
+  const runDrPlan=()=>runControl(async()=>setDrPlan(await planDisasterRecovery({
+    wave:waveOrNull(), primary_cluster_id:controlClusterId||null, dr_cluster_id:drClusterId||null,
+    site_rtt_ms:siteRtt.trim()?+siteRtt:null, daily_change_rate_percent:changeRate,
+    available_bandwidth_mbps:drBandwidth.trim()?+drBandwidth:null,
+  })))
+  const runCalendar=()=>runControl(async()=>{
+    let periods
+    try{ periods=JSON.parse(calendarText) }catch{ throw new Error('Calendar periods must be valid JSON') }
+    setCalendar(await scheduleChangeCalendar({start_date:calendarStart, periods}))
+  })
 
   const evalCapacity=async()=>{
     setBusy(true);setMessage('')
@@ -468,6 +508,8 @@ export default function App(){
           <div className="formGrid">
             <Field label="Cluster name" value={clusterForm.name} onChange={(v:any)=>setClusterForm({...clusterForm,name:v})}/>
             <Field label="Prism extId (optional)" value={clusterForm.prism_ext_id} onChange={(v:any)=>setClusterForm({...clusterForm,prism_ext_id:v})}/>
+            <Field label="Country (ISO, e.g. AE)" value={clusterForm.country_code} onChange={(v:any)=>setClusterForm({...clusterForm,country_code:v.toUpperCase().slice(0,2)})}/>
+            <Field label="Site" value={clusterForm.site_name} onChange={(v:any)=>setClusterForm({...clusterForm,site_name:v})}/>
             <Field label="Physical CPU cores" type="number" value={clusterForm.physical_cpu_cores} onChange={(v:any)=>setClusterForm({...clusterForm,physical_cpu_cores:+v})}/>
             <Field label="CPU overcommit ratio" type="number" step="0.5" value={clusterForm.cpu_overcommit_ratio} onChange={(v:any)=>setClusterForm({...clusterForm,cpu_overcommit_ratio:+v})}/>
             <Field label="Allocated vCPU" type="number" value={clusterForm.allocated_vcpu} onChange={(v:any)=>setClusterForm({...clusterForm,allocated_vcpu:+v})}/>
@@ -491,7 +533,7 @@ export default function App(){
 
           {!clusters.length && <p className="muted">Add at least one target cluster capacity profile.</p>}
           {clusters.map(c=><div className="clusterCard" key={c.id}>
-            <div><strong>{c.name}</strong><span>{c.prism_ext_id||'No Prism extId configured'}</span></div>
+            <div><strong>{c.name}</strong><span>{[c.site_name,c.country_code||'No country set'].filter(Boolean).join(' · ')} · {c.prism_ext_id||'No Prism extId configured'}</span></div>
             <div className="clusterMetrics">
               <span>{c.physical_cpu_cores} cores × {c.cpu_overcommit_ratio}x</span>
               <span>{c.used_memory_gb}/{c.total_memory_gb} GB RAM</span>
@@ -569,6 +611,67 @@ export default function App(){
               <button className="iconButton reject" title="Reject" onClick={()=>decide(a.id,'Rejected')}><XCircle size={16}/></button>
             </div>}
           </div>)}
+        </div>
+      </div>
+    </section>
+
+    <section className="panel controlsPanel">
+      <div className="panelHead">
+        <div><h2><ShieldCheck size={18}/> UAE enterprise controls</h2><p>Data residency, DR protection policies and a GST change calendar. Policies are configurable; they are planning controls, not legal advice.</p></div>
+      </div>
+      <div className="controlsScope">
+        <label className="field"><span>Primary cluster</span><select value={controlClusterId} onChange={e=>setControlClusterId(+e.target.value)}><option value={0}>Select cluster</option>{clusters.map(c=><option key={c.id} value={c.id}>{c.name} {c.country_code&&`(${c.country_code})`}</option>)}</select></label>
+        <label className="field"><span>DR cluster</span><select value={drClusterId} onChange={e=>setDrClusterId(+e.target.value)}><option value={0}>None</option>{clusters.map(c=><option key={c.id} value={c.id}>{c.name} {c.country_code&&`(${c.country_code})`}</option>)}</select></label>
+        <Field label="Wave (blank = whole estate)" value={controlWave} onChange={setControlWave}/>
+      </div>
+      <div className="controlsLayout">
+        <div className="controlCard">
+          <h3><ShieldAlert size={16}/> Data residency</h3>
+          <p className="muted">Confidential and Secret data must stay on clusters in allowed countries (default: AE), for primary and DR copies.</p>
+          <button className="button primary" disabled={busy||!rows.length||!controlClusterId} onClick={runResidency}>Check residency</button>
+          {residency && <>
+            <div className="readinessGrid controlStats">
+              <Mini label="Compliant" value={residency.compliant} tone="ok"/>
+              <Mini label="Unverified" value={residency.unverified} tone="warn"/>
+              <Mini label="Violations" value={residency.violations} tone="bad"/>
+            </div>
+            {residency.workloads.filter((w:any)=>w.status!=='Compliant').map((w:any)=><div className="blocker" key={w.workload_id}>
+              <strong>{w.name} · {w.classification}</strong>
+              {[...w.violations,...w.warnings].map((x:string,i:number)=><span key={i}>{x}</span>)}
+            </div>)}
+          </>}
+        </div>
+
+        <div className="controlCard">
+          <h3><LifeBuoy size={16}/> DR protection plan</h3>
+          <div className="formGrid controlFields">
+            <Field label="Site RTT ms" value={siteRtt} onChange={setSiteRtt}/>
+            <Field label="Daily change %" type="number" value={changeRate} onChange={(v:any)=>setChangeRate(+v)}/>
+            <Field label="DR link Mbps" value={drBandwidth} onChange={setDrBandwidth}/>
+          </div>
+          <button className="button primary" disabled={busy||!rows.length} onClick={runDrPlan}>Plan protection policies</button>
+          {drPlan && <div className="placementResults">
+            <h3>{drPlan.status} · {drPlan.total_avg_replication_mbps} Mbps avg · {drPlan.recommended_link_mbps} Mbps recommended</h3>
+            {drPlan.policies.map((p:any)=><div className="placement fit" key={p.name}>
+              <div><strong>{p.name}</strong><span>{p.mode}{p.snapshot_interval_minutes?` every ${p.snapshot_interval_minutes} min`:''} · category {p.category} · {p.workload_count} VM(s)</span></div>
+            </div>)}
+            {[...drPlan.blockers].map((x:string,i:number)=><div className="blocker" key={`b${i}`}><strong>Blocker</strong><span>{x}</span></div>)}
+            {[...drPlan.warnings].map((x:string,i:number)=><p className="muted" key={`w${i}`}>{x}</p>)}
+          </div>}
+        </div>
+
+        <div className="controlCard">
+          <h3><CalendarClock size={16}/> Change calendar (GST)</h3>
+          <Field label="Earliest start" type="date" value={calendarStart} onChange={setCalendarStart}/>
+          <label className="field"><span>Blackout / restricted periods (JSON)</span><textarea value={calendarText} onChange={e=>setCalendarText(e.target.value)}/></label>
+          <button className="button primary" disabled={busy||!stats.waves} onClick={runCalendar}>Schedule waves</button>
+          {calendar && <div className="placementResults">
+            {calendar.scheduled.map((s:any)=><div className="placement fit" key={s.wave}>
+              <div><strong>Wave {s.wave} · {s.day} {s.window_start_local.slice(0,16).replace('T',' ')}</strong><span>{s.workloads} VM(s) · needs {s.required_minutes} min{s.high_risk?' · high risk':''}</span></div>
+              {s.notes.length>0 && <ul>{s.notes.map((n:string,i:number)=><li key={i}>{n}</li>)}</ul>}
+            </div>)}
+            {calendar.unscheduled.map((u:any)=><div className="placement nofit" key={u.wave}><div><strong>Wave {u.wave} unscheduled</strong><span>{u.reason}</span></div></div>)}
+          </div>}
         </div>
       </div>
     </section>

@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 from openpyxl import load_workbook
 
+from .residency import normalize_classification
+
 
 def _norm(s: Any) -> str:
     return "" if s is None else str(s).strip()
@@ -25,6 +27,15 @@ def _number(value: Any, default: float = 0.0) -> float:
         return float(str(value).replace(",", "").strip())
     except (ValueError, TypeError):
         return default
+
+
+def _optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    number = _number(value, -1)
+    if number < 0:
+        raise ValueError(f"Invalid non-negative number '{value}'")
+    return int(number)
 
 
 def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -57,6 +68,12 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
         "downtime_minutes": int(_number(_lookup(row, ["Downtime Minutes", "Downtime", "Max Downtime"], 60), 60)),
         "app_group": app_group,
         "owner": _norm(_lookup(row, ["Owner", "Application Owner", "Business Owner"], "")),
+        "data_classification": normalize_classification(
+            _norm(_lookup(row, ["Data Classification", "Classification", "Information Classification"], ""))
+        ),
+        "residency": _norm(_lookup(row, ["Residency", "Data Residency", "Hosting Country"], "")).upper(),
+        "rpo_minutes": _optional_int(_lookup(row, ["RPO Minutes", "RPO"], None)),
+        "rto_minutes": _optional_int(_lookup(row, ["RTO Minutes", "RTO"], None)),
     }
 
 

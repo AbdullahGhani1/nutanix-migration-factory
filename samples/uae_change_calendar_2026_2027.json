@@ -1,0 +1,19 @@
+{
+  "_notes": [
+    "Example UAE change calendar for POST /api/v1/controls/change-calendar/schedule.",
+    "Islamic dates are ESTIMATES; they depend on moon sighting and must be replaced with the official UAE government announcement.",
+    "Freeze periods are examples of organization policy (e.g. banking year-end), not legal requirements.",
+    "kind=blackout: no cutovers. kind=restricted: only waves without High-risk or Critical workloads."
+  ],
+  "start_date": "2026-10-01",
+  "weeks": 40,
+  "min_gap_days": 7,
+  "periods": [
+    {"start": "2026-12-01", "end": "2026-12-03", "kind": "blackout", "reason": "Commemoration Day & UAE National Day (confirm official dates)"},
+    {"start": "2026-12-15", "end": "2027-01-04", "kind": "blackout", "reason": "Financial year-end change freeze (example policy)"},
+    {"start": "2027-02-08", "end": "2027-03-08", "kind": "restricted", "reason": "Ramadan - reduced working hours (estimated dates)"},
+    {"start": "2027-03-09", "end": "2027-03-12", "kind": "blackout", "reason": "Eid al-Fitr (estimated dates)"},
+    {"start": "2027-03-29", "end": "2027-04-02", "kind": "blackout", "reason": "Quarter-end close (example policy)"},
+    {"start": "2027-05-15", "end": "2027-05-19", "kind": "blackout", "reason": "Arafat Day & Eid al-Adha (estimated dates)"}
+  ]
+}
