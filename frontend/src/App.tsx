@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   applyNetworkMapping, assess, createDependency, createExecution, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
-  getApprovals, getDependencies, getDependencyGraph, getExecutions, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
+  capturePrismEvidence, getApprovals, getDependencies, getDependencyGraph, getExecutions, getPrismEnvironmentSummary, getPrismEvidenceSnapshots, getPrismNetworkReconciliation,
   getReadiness, getRunbook, getTargetClusters, getTechnicalValidations, getWorkloads, optimizeWaves, planWaves,
   reconcilePrismClusters, recordTechnicalValidation, requestWaveApproval, setSessionApiKey, testPrismConnection, transitionExecution, updateTargetCluster, uploadInventory
 } from './api'
@@ -49,6 +49,13 @@ type TechnicalValidation = {
   evidence_reference:string; summary:string; recorded_at:string;
 }
 
+type PrismEvidence = {
+  id:number; status:string; actor:string; clusters:number; vms:number; subnets:number;
+  target_networks:number; matched_networks:number; missing_networks:number; ambiguous_networks:number;
+  cluster_inventory_truncated:boolean; vm_inventory_truncated:boolean; subnet_inventory_truncated:boolean;
+  snapshot_sha256:string; evidence_reference:string; captured_at:string;
+}
+
 type CapacityEvaluation = {
   headroom_percent:number;
   demand:{wave:number;workloads:number;vcpu:number;memory_gb:number;storage_gb:number};
@@ -86,6 +93,9 @@ export default function App(){
   const [prismStatus,setPrismStatus]=useState<any|null>(null)
   const [prismEnvironment,setPrismEnvironment]=useState<any|null>(null)
   const [prismNetwork,setPrismNetwork]=useState<any|null>(null)
+  const [prismEvidence,setPrismEvidence]=useState<PrismEvidence[]>([])
+  const [prismEvidenceActor,setPrismEvidenceActor]=useState('migration.engineer')
+  const [prismEvidenceReference,setPrismEvidenceReference]=useState('')
   const [approvals,setApprovals]=useState<Approval[]>([])
   const [approvalWave,setApprovalWave]=useState(1)
   const [approvalClusterId,setApprovalClusterId]=useState(0)
@@ -122,11 +132,12 @@ export default function App(){
   const refreshApprovals=async()=>setApprovals(await getApprovals())
   const refreshExecutions=async()=>setExecutions(await getExecutions())
   const refreshTechnicalValidations=async()=>setTechnicalValidations(await getTechnicalValidations())
+  const refreshPrismEvidence=async()=>setPrismEvidence(await getPrismEvidenceSnapshots())
   const refreshDependencies=async()=>{
     setDependencies(await getDependencies())
     setDependencyGraph(await getDependencyGraph())
   }
-  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshExecutions().catch(()=>{});refreshTechnicalValidations().catch(()=>{});refreshDependencies().catch(()=>{})},[])
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshExecutions().catch(()=>{});refreshTechnicalValidations().catch(()=>{});refreshPrismEvidence().catch(()=>{});refreshDependencies().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -256,6 +267,19 @@ export default function App(){
       setPrismNetwork(null)
       setMessage(e.message)
     }finally{setBusy(false)}
+  }
+
+  const capturePrismSnapshot=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      const result=await capturePrismEvidence({
+        actor:prismEvidenceActor,
+        evidence_reference:prismEvidenceReference,
+      })
+      await refreshPrismEvidence()
+      setMessage(`Prism evidence #${result.id} captured: ${result.clusters} cluster(s), ${result.vms} VM(s), ${result.matched_networks}/${result.target_networks} target network(s) matched`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
   }
 
   const requestApproval=async()=>{
@@ -402,7 +426,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.9-dev</div>
+        <div className="badge"><Activity size={18}/> v1.0-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -451,9 +475,16 @@ export default function App(){
     <section className="panel prismPanel">
       <div className="panelHead">
         <div><h2><Waypoints size={18}/> Live Prism Central discovery</h2><p>Read-only GA v4 inventory discovery for registered clusters, AHV VMs and subnets, plus reconciliation against planned target networks.</p></div>
-        <button className="button primary" disabled={busy} onClick={discoverPrism}>Discover Prism</button>
+        <div className="prismActions">
+          <button className="button primary" disabled={busy} onClick={discoverPrism}>Discover Prism</button>
+          <button className="button" disabled={busy} onClick={capturePrismSnapshot}>Capture evidence</button>
+        </div>
       </div>
       <div className="prismDiscoveryBody">
+        <div className="prismEvidenceControls">
+          <Field label="Evidence actor" value={prismEvidenceActor} onChange={setPrismEvidenceActor}/>
+          <Field label="Evidence reference" value={prismEvidenceReference} onChange={setPrismEvidenceReference}/>
+        </div>
         {prismEnvironment ? <>
           <div className="prismStats">
             <Mini label="Clusters" value={prismEnvironment.clusters} tone="ok"/>
@@ -471,6 +502,19 @@ export default function App(){
             {prismNetwork?.targets===0 && <p className="muted">No planned AHV target networks exist yet. Apply network mappings first, then rediscover Prism.</p>}
           </div>
         </> : <p className="muted">Configure Prism Central credentials in the API environment, then run discovery. The connector is read-only.</p>}
+
+        <div className="prismEvidenceHistory">
+          <h3>Captured environment evidence</h3>
+          {!prismEvidence.length&&<p className="muted">No live Prism environment evidence has been persisted yet.</p>}
+          {prismEvidence.slice(0,5).map(p=><div className="prismEvidenceCard" key={p.id}>
+            <div>
+              <strong>Evidence #{p.id} · {p.status}</strong>
+              <span>{new Date(p.captured_at).toLocaleString()} · {p.clusters} cluster(s) · {p.vms} VM(s) · {p.subnets} subnet(s)</span>
+              <span>Networks {p.matched_networks}/{p.target_networks} matched · SHA-256 {p.snapshot_sha256.slice(0,16)}…</span>
+            </div>
+            <div className={`networkStatus ${p.status==='Captured'?'matched':'ambiguous'}`}>{p.status}</div>
+          </div>)}
+        </div>
       </div>
     </section>
 
