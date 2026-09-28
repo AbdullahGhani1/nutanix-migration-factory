@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity, CheckCircle2, ClipboardCheck, Database, FileText, FileUp, Gauge, Layers3, Map,
+  Activity, CheckCircle2, ClipboardCheck, Database, FileText, FileUp, Gauge, GitBranch, Layers3, Map,
   Server, ShieldAlert, UserCheck, Waypoints, XCircle
 } from 'lucide-react'
 import {
-  API, applyNetworkMapping, assess, createTargetCluster, decideApproval, evaluateWaveCapacity,
-  getApprovals, getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
+  API, applyNetworkMapping, assess, createDependency, createTargetCluster, decideApproval, evaluateWaveCapacity,
+  getApprovals, getDependencies, getDependencyGraph, getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
   reconcilePrismClusters, requestWaveApproval, updateTargetCluster, uploadInventory
 } from './api'
 
@@ -74,11 +74,19 @@ export default function App(){
   const [requestedBy,setRequestedBy]=useState('migration.engineer')
   const [changeTicket,setChangeTicket]=useState('CHG-2026-0042')
   const [decidedBy,setDecidedBy]=useState('change.manager')
+  const [dependencies,setDependencies]=useState<any[]>([])
+  const [dependencyGraph,setDependencyGraph]=useState<any|null>(null)
+  const [upstreamId,setUpstreamId]=useState(0)
+  const [downstreamId,setDownstreamId]=useState(0)
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
   const refreshApprovals=async()=>setApprovals(await getApprovals())
-  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{})},[])
+  const refreshDependencies=async()=>{
+    setDependencies(await getDependencies())
+    setDependencyGraph(await getDependencyGraph())
+  }
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshDependencies().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -99,8 +107,10 @@ export default function App(){
   const upload=async(e:any)=>{
     const f=e.target.files?.[0]
     if(f){
-      setReadiness(null); setRunbook(null); setCapacity(null)
+      setReadiness(null); setRunbook(null); setCapacity(null); setDependencies([]); setDependencyGraph(null)
       await act(()=>uploadInventory(f),`Imported ${f.name}`)
+      await refreshApprovals().catch(()=>{})
+      await refreshDependencies().catch(()=>{})
     }
   }
 
@@ -194,6 +204,22 @@ export default function App(){
     finally{setBusy(false)}
   }
 
+  const addDependency=async()=>{
+    if(!upstreamId||!downstreamId){setMessage('Select upstream and downstream workloads');return}
+    setBusy(true);setMessage('')
+    try{
+      await createDependency({
+        upstream_workload_id:upstreamId,
+        downstream_workload_id:downstreamId,
+        dependency_type:'service',
+        notes:'Defined in Migration Factory dependency planner',
+      })
+      await refreshDependencies()
+      setMessage('Workload dependency added')
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
   const decide=async(id:number,decision:'Approved'|'Rejected')=>{
     setBusy(true);setMessage('')
     try{
@@ -219,7 +245,8 @@ export default function App(){
       <button className="button" disabled={busy||!rows.length} onClick={()=>act(assess,'Assessment complete')}><ShieldAlert size={17}/> Assess</button>
       <button className="button" disabled={busy||!rows.length} onClick={()=>act(planWaves,'Migration waves generated')}><Layers3 size={17}/> Plan waves</button>
       <button className="button" disabled={busy||!rows.length} onClick={checkReadiness}><ClipboardCheck size={17}/> Readiness</button>
-      <a className="button" href={`${API}/api/v1/reports/migration-plan.csv`}><Database size={17}/> Export plan</a>
+      <a className="button" href={`${API}/api/v1/reports/migration-plan.csv`}><Database size={17}/> Export CSV</a>
+      <a className="button" href={`${API}/api/v1/reports/implementation-report.pdf`}><FileText size={17}/> Implementation PDF</a>
     </section>
 
     {message && <div className="notice">{message}</div>}
@@ -318,6 +345,32 @@ export default function App(){
       <p className="capacityDisclaimer">Capacity results are a planning envelope, not a production sizing recommendation. Final sizing must consider measured utilization, HA/N+1, resiliency, reservations and current Nutanix sizing guidance.</p>
     </section>
 
+    <section className="panel dependencyPanel">
+      <div className="panelHead">
+        <div><h2><GitBranch size={18}/> Application dependency graph</h2><p>Define upstream → downstream dependencies so service start/stop order is generated deterministically.</p></div>
+      </div>
+      <div className="dependencyLayout">
+        <div className="dependencyForm">
+          <label className="field"><span>Upstream workload</span><select value={upstreamId} onChange={e=>setUpstreamId(+e.target.value)}><option value={0}>Select workload</option>{rows.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
+          <label className="field"><span>Downstream workload</span><select value={downstreamId} onChange={e=>setDownstreamId(+e.target.value)}><option value={0}>Select workload</option>{rows.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
+          <button className="button primary" disabled={busy||!rows.length} onClick={addDependency}>Add dependency</button>
+        </div>
+        <div className="dependencySummary">
+          <div className="readinessGrid">
+            <Mini label="Edges" value={dependencies.length} tone="ok"/>
+            <Mini label="Nodes" value={dependencyGraph?.nodes?.length||0} tone="ok"/>
+            <Mini label="Cycle" value={dependencyGraph?.has_cycle?1:0} tone={dependencyGraph?.has_cycle?'bad':'ok'}/>
+          </div>
+          {dependencies.slice(0,8).map(d=>{
+            const up=rows.find(w=>w.id===d.upstream_workload_id)?.name||d.upstream_workload_id
+            const down=rows.find(w=>w.id===d.downstream_workload_id)?.name||d.downstream_workload_id
+            return <div className="dependencyEdge" key={d.id}><strong>{up}</strong><span>→</span><strong>{down}</strong></div>
+          })}
+          {!dependencies.length&&<p className="muted">No dependencies recorded. Example: database → application → web tier.</p>}
+        </div>
+      </div>
+    </section>
+
     <section className="panel governancePanel">
       <div className="panelHead">
         <div><h2><UserCheck size={18}/> Migration governance</h2><p>Approval requests are accepted only after readiness and selected-cluster capacity gates pass.</p></div>
@@ -373,6 +426,10 @@ export default function App(){
 
     {runbook && <section className="panel runbookPanel">
       <div className="panelHead"><div><h2>Wave {runbook.wave} cutover / rollback runbook</h2><p>{runbook.workloads.join(', ')}</p></div><button className="button" onClick={()=>setRunbook(null)}>Close</button></div>
+      <div className="sequenceStrip">
+        <div><span>Service start order</span><strong>{runbook.service_start_order?.join(' → ')||'Not defined'}</strong></div>
+        <div><span>Service stop order</span><strong>{runbook.service_stop_order?.join(' → ')||'Not defined'}</strong></div>
+      </div>
       <div className="runbookCols">
         <RunbookList title="Pre-cutover" items={runbook.pre_cutover}/>
         <RunbookList title="Cutover" items={runbook.cutover}/>
