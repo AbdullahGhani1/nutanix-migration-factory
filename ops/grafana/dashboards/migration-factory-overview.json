@@ -1,0 +1,54 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API Requests / Minute",
+      "datasource": {"type": "prometheus", "uid": "migration-factory-prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(migration_factory_http_requests_total[1m])) * 60",
+          "legendFormat": "requests/min",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 API Latency",
+      "datasource": {"type": "prometheus", "uid": "migration-factory-prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(migration_factory_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 5xx Rate",
+      "datasource": {"type": "prometheus", "uid": "migration-factory-prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(migration_factory_http_requests_total{status=~\"5..\"}[5m])) by (route)",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["nutanix", "migration", "observability"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Migration Factory - API Overview",
+  "uid": "migration-factory-overview",
+  "version": 1
+}
