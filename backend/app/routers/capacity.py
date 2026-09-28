@@ -26,6 +26,13 @@ from ..services.nutanix import NutanixClient, NutanixNotConfigured
 router = APIRouter(prefix="/api/v1/capacity", tags=["capacity"])
 
 
+def _validate_capacity(payload: TargetClusterIn):
+    if payload.used_memory_gb > payload.total_memory_gb:
+        raise HTTPException(status_code=400, detail="used_memory_gb cannot exceed total_memory_gb")
+    if payload.used_storage_gb > payload.usable_storage_gb:
+        raise HTTPException(status_code=400, detail="used_storage_gb cannot exceed usable_storage_gb")
+
+
 @router.get("/clusters", response_model=list[TargetClusterOut])
 def list_target_clusters(db: Session = Depends(get_db)):
     return list(db.scalars(select(TargetCluster).order_by(TargetCluster.name)))
@@ -33,6 +40,7 @@ def list_target_clusters(db: Session = Depends(get_db)):
 
 @router.post("/clusters", response_model=TargetClusterOut)
 def create_target_cluster(payload: TargetClusterIn, db: Session = Depends(get_db)):
+    _validate_capacity(payload)
     existing = db.scalar(select(TargetCluster).where(TargetCluster.name == payload.name))
     if existing:
         raise HTTPException(status_code=409, detail=f"Target cluster '{payload.name}' already exists")
@@ -45,6 +53,53 @@ def create_target_cluster(payload: TargetClusterIn, db: Session = Depends(get_db
             event_type="target_cluster.created",
             entity=cluster.name,
             detail=json.dumps(payload.model_dump()),
+        )
+    )
+    db.commit()
+    db.refresh(cluster)
+    return cluster
+
+
+@router.put("/clusters/{cluster_id}", response_model=TargetClusterOut)
+def update_target_cluster(
+    cluster_id: int,
+    payload: TargetClusterIn,
+    db: Session = Depends(get_db),
+):
+    _validate_capacity(payload)
+    cluster = db.get(TargetCluster, cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Target cluster not found")
+
+    name_conflict = db.scalar(
+        select(TargetCluster).where(
+            TargetCluster.name == payload.name,
+            TargetCluster.id != cluster_id,
+        )
+    )
+    if name_conflict:
+        raise HTTPException(status_code=409, detail=f"Target cluster '{payload.name}' already exists")
+
+    before = {
+        "name": cluster.name,
+        "prism_ext_id": cluster.prism_ext_id,
+        "physical_cpu_cores": cluster.physical_cpu_cores,
+        "cpu_overcommit_ratio": cluster.cpu_overcommit_ratio,
+        "allocated_vcpu": cluster.allocated_vcpu,
+        "total_memory_gb": cluster.total_memory_gb,
+        "used_memory_gb": cluster.used_memory_gb,
+        "usable_storage_gb": cluster.usable_storage_gb,
+        "used_storage_gb": cluster.used_storage_gb,
+        "enabled": cluster.enabled,
+    }
+    for key, value in payload.model_dump().items():
+        setattr(cluster, key, value)
+
+    db.add(
+        PlanningAudit(
+            event_type="target_cluster.updated",
+            entity=cluster.name,
+            detail=json.dumps({"before": before, "after": payload.model_dump()}),
         )
     )
     db.commit()
