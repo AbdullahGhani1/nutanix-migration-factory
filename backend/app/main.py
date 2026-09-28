@@ -13,11 +13,11 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 app = FastAPI(
     title="Nutanix Migration Factory API",
-    version="0.5.0",
+    version="0.6.0",
     description=(
         "VMware-to-Nutanix migration inventory, complexity assessment, network mapping, "
         "readiness control, AHV target capacity planning, governance/approvals, dependency-aware "
-        "wave optimization, execution evidence, runbook generation, reporting, observability and Prism Central discovery."
+        "wave optimization, execution evidence, runbook generation, Terraform export, reporting, observability and Prism Central discovery."
     ),
 )
 app.add_middleware(
@@ -50,6 +50,6 @@ def health():
     return {
         "status": "ok",
         "service": "nutanix-migration-factory",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "auth_enabled": settings.auth_enabled,
     }
