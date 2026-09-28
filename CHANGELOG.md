@@ -17,6 +17,9 @@
 - Added /ready database readiness endpoint and API container health checks
 - Added optional Prometheus/Grafana Compose profile and provisioned dashboard
 - Expanded CI to validate app import, Compose configuration and container builds
+- Added Alembic-managed schema migrations and removed implicit create_all startup behavior
+- API container now upgrades the schema before startup; CI validates the migration revision
+- Added browser session-scoped API-key support for RBAC-enabled deployments and authenticated report downloads
 
 ## 0.2.0 — in development
 
