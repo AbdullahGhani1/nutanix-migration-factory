@@ -267,3 +267,36 @@ class ExecutionOut(BaseModel):
     evidence_reference: str
     notes: str
     created_at: datetime
+
+
+
+class TechnicalValidationCreate(BaseModel):
+    tool: str = "Ansible"
+    status: str
+    actor: str = Field(min_length=1)
+    hosts_total: int = Field(default=0, ge=0)
+    hosts_passed: int = Field(default=0, ge=0)
+    hosts_failed: int = Field(default=0, ge=0)
+    prism_validation: str = "NotRun"
+    guest_validation: str = "NotRun"
+    artifact_sha256: str = ""
+    evidence_reference: str = ""
+    summary: str = ""
+
+
+class TechnicalValidationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    execution_id: int
+    tool: str
+    status: str
+    actor: str
+    hosts_total: int
+    hosts_passed: int
+    hosts_failed: int
+    prism_validation: str
+    guest_validation: str
+    artifact_sha256: str
+    evidence_reference: str
+    summary: str
+    recorded_at: datetime
