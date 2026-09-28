@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 — in development
+
+- Added generated Ansible post-migration validation pack
+- Added official nutanix.ncp 2.6.0 collection requirement
+- Added Prism Central cluster-discovery validation using v2 collection modules
+- Added Linux post-migration connectivity/facts checks
+- Added Windows WinRM/ping/hostname checks
+- Added no-secret generated inventory with explicit guest-IP placeholders
+- Added workload metadata and SHA-256 manifest
+- Added authenticated React download
+- Added CI collection install and ansible-playbook syntax validation
+- Kept application UAT explicitly separate from infrastructure validation
+
+
 ## 0.6.0 — in development
 
 - Added generated Nutanix Terraform planning pack
