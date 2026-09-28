@@ -2,7 +2,7 @@ import csv
 import io
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ from ..models import (
     WorkloadDependency,
 )
 from ..services.ansible_export import build_ansible_validation_pack
+from ..services.change_package import build_cab_package
 from ..services.evidence_bundle import build_evidence_bundle
 from ..services.implementation_report import build_implementation_report
 from ..services.terraform_export import build_terraform_pack
@@ -249,5 +250,72 @@ def ansible_validation_pack_zip(db: Session = Depends(get_db)):
         media_type="application/zip",
         headers={
             "Content-Disposition": "attachment; filename=nutanix-ansible-validation-pack.zip"
+        },
+    )
+
+
+@router.get("/approvals/{approval_id}/cab-package.zip")
+def approval_cab_package_zip(approval_id: int, db: Session = Depends(get_db)):
+    approval = db.get(MigrationApproval, approval_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="Migration approval not found")
+    if approval.status != "Approved":
+        raise HTTPException(
+            status_code=409,
+            detail="CAB package can only be generated from an Approved migration request",
+        )
+
+    target_cluster = db.get(TargetCluster, approval.target_cluster_id)
+    if not target_cluster:
+        raise HTTPException(status_code=409, detail="Approved target cluster no longer exists")
+
+    workloads = list(
+        db.scalars(
+            select(Workload)
+            .where(Workload.wave_number == approval.wave_number)
+            .order_by(Workload.app_group, Workload.name)
+        )
+    )
+    if not workloads:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Approved wave {approval.wave_number} has no workloads",
+        )
+
+    dependencies = list(db.scalars(select(WorkloadDependency).order_by(WorkloadDependency.id)))
+    execution = db.scalar(
+        select(MigrationExecution).where(MigrationExecution.approval_id == approval.id)
+    )
+    validations = []
+    if execution:
+        validations = list(
+            db.scalars(
+                select(TechnicalValidationRecord)
+                .where(TechnicalValidationRecord.execution_id == execution.id)
+                .order_by(TechnicalValidationRecord.recorded_at)
+            )
+        )
+
+    try:
+        bundle = build_cab_package(
+            approval=approval,
+            target_cluster=target_cluster,
+            workloads=workloads,
+            dependencies=dependencies,
+            execution=execution,
+            validations=validations,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    ticket = approval.change_ticket or f"approval-{approval.id}"
+    safe_ticket = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in ticket)
+    return Response(
+        content=bundle,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=nutanix-cab-{safe_ticket}-wave-{approval.wave_number}.zip"
+            )
         },
     )
