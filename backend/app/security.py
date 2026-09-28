@@ -74,7 +74,7 @@ class ServiceKeyRBACMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         settings = get_settings()
-        if not settings.auth_enabled or request.url.path in PUBLIC_PATHS:
+        if request.method.upper() == "OPTIONS" or not settings.auth_enabled or request.url.path in PUBLIC_PATHS:
             request.state.role = "auth-disabled" if not settings.auth_enabled else "public"
             return await call_next(request)
 
