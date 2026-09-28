@@ -475,7 +475,7 @@ curl -X POST http://localhost:8000/api/v1/controls/change-calendar/schedule \
 The read-only connector uses the Nutanix v4 API family for clusters, AHV VMs and networking subnets.
 
 ```text
-GET /api/clustermgmt/v4.0/ahv/config/clusters
+GET /api/clustermgmt/v4.0/config/clusters
 GET /api/vmm/v4.0/ahv/config/vms
 GET /api/networking/v4.0/config/subnets
 ```
@@ -509,7 +509,7 @@ NUTANIX_VERIFY_TLS=true
 Current read-only discovery endpoints:
 
 ```text
-GET /api/clustermgmt/v4.0/ahv/config/clusters
+GET /api/clustermgmt/v4.0/config/clusters
 GET /api/vmm/v4.0/ahv/config/vms
 ```
 

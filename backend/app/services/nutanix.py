@@ -136,7 +136,7 @@ class NutanixClient:
 
     def list_clusters(self, limit: int = 50):
         return self._get(
-            "/api/clustermgmt/v4.0/ahv/config/clusters",
+            "/api/clustermgmt/v4.0/config/clusters",
             {"$limit": min(limit, 100)},
         )
 
@@ -160,7 +160,7 @@ class NutanixClient:
 
     def inventory_snapshot(self, max_items: int = 1000) -> dict:
         clusters = self._list_all(
-            "/api/clustermgmt/v4.0/ahv/config/clusters",
+            "/api/clustermgmt/v4.0/config/clusters",
             max_items=max_items,
         )
         vms = self._list_all(

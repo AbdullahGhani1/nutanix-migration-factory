@@ -88,3 +88,13 @@ def test_paginated_inventory_not_truncated_when_total_is_fully_returned():
     result = client._list_all("/api/example", page_size=100, max_items=1000)
     assert len(result["data"]) == 2
     assert result["metadata"]["truncatedByMigrationFactory"] is False
+
+
+def test_cluster_inventory_uses_ga_clustermgmt_path(monkeypatch):
+    from app.services.nutanix import NutanixClient
+
+    calls = []
+    client = NutanixClient.__new__(NutanixClient)
+    monkeypatch.setattr(client, "_get", lambda path, params=None: calls.append(path) or {"data": []}, raising=False)
+    client.list_clusters()
+    assert calls == ["/api/clustermgmt/v4.0/config/clusters"]
