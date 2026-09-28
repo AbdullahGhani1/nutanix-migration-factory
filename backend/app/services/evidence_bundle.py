@@ -16,6 +16,7 @@ def build_evidence_bundle(
     implementation_pdf: bytes,
     migration_plan_csv: bytes,
     executions_json: bytes,
+    technical_validations_json: bytes | None = None,
     metadata: dict | None = None,
 ) -> bytes:
     """Package migration artifacts with a SHA-256 manifest.
@@ -28,14 +29,16 @@ def build_evidence_bundle(
         "migration-plan.csv": migration_plan_csv,
         "executions.json": executions_json,
     }
+    if technical_validations_json is not None:
+        files["technical-validations.json"] = technical_validations_json
 
     manifest = {
-        "schema": "nutanix-migration-factory-evidence-bundle/v1",
+        "schema": "nutanix-migration-factory-evidence-bundle/v2",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provenance": (
-            "Artifacts exported from Migration Factory. Execution evidence may "
-            "contain operator-entered measurements and references and is not "
-            "independently verified by the application."
+            "Artifacts exported from Migration Factory. Execution and technical validation "
+            "evidence may contain operator-entered measurements and references "
+            "and is not independently verified by the application."
         ),
         "metadata": metadata or {},
         "files": {

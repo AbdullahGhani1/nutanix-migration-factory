@@ -19,7 +19,7 @@ jobs:
       - run: PYTHONPATH=. pytest -q
       - run: DATABASE_URL=sqlite:////tmp/migration_factory_ci.db alembic upgrade head
       - run: DATABASE_URL=sqlite:////tmp/migration_factory_ci.db alembic current
-      - run: PYTHONPATH=. python -c "from app.main import app; assert app.version == '0.7.0'"
+      - run: PYTHONPATH=. python -c "from app.main import app; assert app.version == '0.8.0'"
 
   frontend:
     runs-on: ubuntu-latest

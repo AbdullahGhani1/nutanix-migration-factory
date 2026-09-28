@@ -6,8 +6,8 @@ import {
 import {
   applyNetworkMapping, assess, createDependency, createExecution, createTargetCluster, decideApproval, downloadAuthenticated, evaluateWaveCapacity,
   getApprovals, getDependencies, getDependencyGraph, getExecutions, getPrismEnvironmentSummary, getPrismNetworkReconciliation,
-  getReadiness, getRunbook, getTargetClusters, getWorkloads, optimizeWaves, planWaves,
-  reconcilePrismClusters, requestWaveApproval, setSessionApiKey, testPrismConnection, transitionExecution, updateTargetCluster, uploadInventory
+  getReadiness, getRunbook, getTargetClusters, getTechnicalValidations, getWorkloads, optimizeWaves, planWaves,
+  reconcilePrismClusters, recordTechnicalValidation, requestWaveApproval, setSessionApiKey, testPrismConnection, transitionExecution, updateTargetCluster, uploadInventory
 } from './api'
 
 type Workload = {
@@ -40,6 +40,13 @@ type Execution = {
   completed_at:string|null; cutover_duration_minutes:number|null; uat_status:string;
   rollback_executed:boolean; validation_summary:string; rollback_reason:string;
   evidence_reference:string; notes:string; created_at:string;
+}
+
+type TechnicalValidation = {
+  id:number; execution_id:number; tool:string; status:string; actor:string;
+  hosts_total:number; hosts_passed:number; hosts_failed:number;
+  prism_validation:string; guest_validation:string; artifact_sha256:string;
+  evidence_reference:string; summary:string; recorded_at:string;
 }
 
 type CapacityEvaluation = {
@@ -99,16 +106,27 @@ export default function App(){
   const [validationSummary,setValidationSummary]=useState('')
   const [rollbackReason,setRollbackReason]=useState('')
   const [evidenceReference,setEvidenceReference]=useState('')
+  const [technicalValidations,setTechnicalValidations]=useState<TechnicalValidation[]>([])
+  const [validationExecutionId,setValidationExecutionId]=useState(0)
+  const [validationStatus,setValidationStatus]=useState('Passed')
+  const [validationHostsTotal,setValidationHostsTotal]=useState(0)
+  const [validationHostsPassed,setValidationHostsPassed]=useState(0)
+  const [validationHostsFailed,setValidationHostsFailed]=useState(0)
+  const [prismValidation,setPrismValidation]=useState('Passed')
+  const [guestValidation,setGuestValidation]=useState('Passed')
+  const [validationArtifactSha,setValidationArtifactSha]=useState('')
+  const [technicalValidationSummary,setTechnicalValidationSummary]=useState('')
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
   const refreshApprovals=async()=>setApprovals(await getApprovals())
   const refreshExecutions=async()=>setExecutions(await getExecutions())
+  const refreshTechnicalValidations=async()=>setTechnicalValidations(await getTechnicalValidations())
   const refreshDependencies=async()=>{
     setDependencies(await getDependencies())
     setDependencyGraph(await getDependencyGraph())
   }
-  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshExecutions().catch(()=>{});refreshDependencies().catch(()=>{})},[])
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{});refreshExecutions().catch(()=>{});refreshTechnicalValidations().catch(()=>{});refreshDependencies().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -133,6 +151,7 @@ export default function App(){
       await act(()=>uploadInventory(f),`Imported ${f.name}`)
       await refreshApprovals().catch(()=>{})
       await refreshExecutions().catch(()=>{})
+      await refreshTechnicalValidations().catch(()=>{})
       await refreshDependencies().catch(()=>{})
     }
   }
@@ -280,6 +299,7 @@ export default function App(){
       refreshClusters().catch(()=>{}),
       refreshApprovals().catch(()=>{}),
       refreshExecutions().catch(()=>{}),
+      refreshTechnicalValidations().catch(()=>{}),
       refreshDependencies().catch(()=>{}),
     ])
   }
@@ -341,6 +361,29 @@ export default function App(){
     finally{setBusy(false)}
   }
 
+  const recordValidationEvidence=async()=>{
+    if(!validationExecutionId){setMessage('Select a started/completed migration execution');return}
+    setBusy(true);setMessage('')
+    try{
+      await recordTechnicalValidation(validationExecutionId,{
+        tool:'Ansible',
+        status:validationStatus,
+        actor:executionOperator,
+        hosts_total:validationHostsTotal,
+        hosts_passed:validationHostsPassed,
+        hosts_failed:validationHostsFailed,
+        prism_validation:prismValidation,
+        guest_validation:guestValidation,
+        artifact_sha256:validationArtifactSha,
+        evidence_reference:evidenceReference,
+        summary:technicalValidationSummary,
+      })
+      await refreshTechnicalValidations()
+      setMessage(`Technical validation recorded for execution #${validationExecutionId}`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
   const decide=async(id:number,decision:'Approved'|'Rejected')=>{
     setBusy(true);setMessage('')
     try{
@@ -359,7 +402,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.7-dev</div>
+        <div className="badge"><Activity size={18}/> v0.8-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -612,6 +655,38 @@ export default function App(){
             </>}
           </div>
         </div>)}
+      </div>
+    </section>
+
+    <section className="panel validationPanel">
+      <div className="panelHead">
+        <div><h2><ClipboardCheck size={18}/> Technical validation evidence</h2><p>Record actual Ansible/Prism post-migration results. This is infrastructure evidence, not application-owner UAT.</p></div>
+      </div>
+      <div className="validationEvidenceLayout">
+        <div className="validationEvidenceForm">
+          <label className="field"><span>Migration execution</span><select value={validationExecutionId} onChange={e=>setValidationExecutionId(+e.target.value)}><option value={0}>Select execution</option>{executions.filter(x=>x.status!=='Planned').map(x=><option key={x.id} value={x.id}>Execution #{x.id} · Wave {x.wave_number} · {x.status}</option>)}</select></label>
+          <label className="field"><span>Validation status</span><select value={validationStatus} onChange={e=>setValidationStatus(e.target.value)}><option>Passed</option><option>Partial</option><option>Failed</option></select></label>
+          <label className="field"><span>Prism validation</span><select value={prismValidation} onChange={e=>setPrismValidation(e.target.value)}><option>Passed</option><option>Partial</option><option>Failed</option><option>NotRun</option></select></label>
+          <label className="field"><span>Guest validation</span><select value={guestValidation} onChange={e=>setGuestValidation(e.target.value)}><option>Passed</option><option>Partial</option><option>Failed</option><option>NotRun</option></select></label>
+          <Field label="Hosts total" type="number" value={validationHostsTotal} onChange={(v:any)=>setValidationHostsTotal(+v)}/>
+          <Field label="Hosts passed" type="number" value={validationHostsPassed} onChange={(v:any)=>setValidationHostsPassed(+v)}/>
+          <Field label="Hosts failed" type="number" value={validationHostsFailed} onChange={(v:any)=>setValidationHostsFailed(+v)}/>
+          <Field label="Artifact SHA-256 (optional)" value={validationArtifactSha} onChange={setValidationArtifactSha}/>
+          <label className="field validationSummaryField"><span>Technical summary</span><textarea value={technicalValidationSummary} onChange={e=>setTechnicalValidationSummary(e.target.value)} placeholder="Record actual Prism, Linux/Windows guest and infrastructure validation results."/></label>
+          <button className="button primary" disabled={busy||!validationExecutionId} onClick={recordValidationEvidence}>Record technical validation</button>
+        </div>
+        <div className="validationEvidenceList">
+          {!technicalValidations.length&&<p className="muted">No technical validation evidence recorded.</p>}
+          {technicalValidations.map(v=><div className="validationEvidenceCard" key={v.id}>
+            <div>
+              <strong>Execution #{v.execution_id} · {v.tool}</strong>
+              <span>{v.hosts_passed}/{v.hosts_total} hosts passed · {v.hosts_failed} failed · Prism {v.prism_validation} · Guest {v.guest_validation}</span>
+              {v.summary&&<span>{v.summary}</span>}
+              {v.artifact_sha256&&<span>Artifact SHA-256: {v.artifact_sha256.slice(0,16)}…</span>}
+            </div>
+            <div className={`validationStatus ${v.status.toLowerCase()}`}>{v.status}</div>
+          </div>)}
+        </div>
       </div>
     </section>
 
