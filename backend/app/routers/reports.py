@@ -15,6 +15,7 @@ from ..models import (
     Workload,
     WorkloadDependency,
 )
+from ..services.ansible_export import build_ansible_validation_pack
 from ..services.evidence_bundle import build_evidence_bundle
 from ..services.implementation_report import build_implementation_report
 from ..services.terraform_export import build_terraform_pack
@@ -186,5 +187,26 @@ def terraform_pack_zip(db: Session = Depends(get_db)):
         media_type="application/zip",
         headers={
             "Content-Disposition": "attachment; filename=nutanix-terraform-pack.zip"
+        },
+    )
+
+
+@router.get("/ansible-validation-pack.zip")
+def ansible_validation_pack_zip(db: Session = Depends(get_db)):
+    workloads = list(
+        db.scalars(
+            select(Workload).order_by(
+                Workload.wave_number,
+                Workload.app_group,
+                Workload.name,
+            )
+        )
+    )
+    bundle = build_ansible_validation_pack(workloads)
+    return Response(
+        content=bundle,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=nutanix-ansible-validation-pack.zip"
         },
     )
