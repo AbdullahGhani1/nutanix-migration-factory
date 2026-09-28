@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.6 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.7 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -440,6 +440,22 @@ manifest.json
 
 `manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
 
+## Ansible post-migration validation export
+
+Migration Factory can generate a **no-secret post-migration Ansible validation pack**:
+
+```text
+GET /api/v1/reports/ansible-validation-pack.zip
+```
+
+The pack includes the official `nutanix.ncp` collection, Prism Central cluster-discovery validation, Linux guest checks, Windows WinRM checks, generated inventory placeholders, workload metadata, and a SHA-256 manifest.
+
+The exported guest addresses are intentionally `REPLACE_WITH_MIGRATED_GUEST_IP`; Migration Factory does not invent production IP addresses. Prism and guest credentials are never embedded. Use Ansible Vault or an external secret manager.
+
+CI installs the generated collection requirements and runs `ansible-playbook --syntax-check` across the generated validation playbooks.
+
+This is technical post-migration validation. It does not replace application-owner UAT.
+
 ## Terraform / Infrastructure as Code export
 
 Migration Factory can generate a **reviewable Nutanix Terraform pack** from the current normalized estate:
@@ -553,6 +569,22 @@ This repository is genuine engineering work, but production Nutanix implementati
 8. Publish sanitized operational evidence and handover material.
 
 ## Roadmap
+
+### v0.7
+- [x] generated Ansible post-migration validation pack
+- [x] official `nutanix.ncp` collection requirement
+- [x] Prism Central v4-backed cluster validation playbook
+- [x] Linux guest reachability/facts validation
+- [x] Windows WinRM validation
+- [x] generated inventory with no production IP guessing
+- [x] no embedded Prism or guest credentials
+- [x] SHA-256 artifact manifest
+- [x] authenticated dashboard download
+- [x] CI collection install + playbook syntax checks
+- [ ] run against authorized migrated guests
+- [ ] record application-specific UAT plugins/checks
+- [ ] integrate approved validation results into execution evidence
+
 
 ### v0.6
 - [x] generated Nutanix Terraform pack
