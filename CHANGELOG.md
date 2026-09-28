@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — in development
+
+- Added deterministic source-network → AHV subnet mapping with wildcard rules
+- Added pre-migration readiness controls and blocker/warning classification
+- Added per-wave enterprise cutover/rollback runbook generation
+- Added tests for network mapping, readiness and runbooks
+- Upgraded API metadata to v0.2.0
+- Removed repository-local Git bundle artifact from source control
+
 ## 0.1.0 — 2026-09-28
 
 - Initial working MVP
