@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.7 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.8 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -440,6 +440,31 @@ manifest.json
 
 `manifest.json` records the SHA-256 digest and byte size of each exported artifact. This provides an integrity checkpoint for the bundle as exported; it does not prove that operator-entered measurements are factually correct.
 
+## Technical validation evidence
+
+v0.8 connects post-migration infrastructure checks to a specific migration execution record instead of leaving validation as an unstructured note.
+
+```text
+POST /api/v1/validation/executions/{execution_id}
+GET  /api/v1/validation
+GET  /api/v1/validation/executions/{execution_id}
+```
+
+A record stores:
+
+- validation tool and actor
+- Passed / Partial / Failed status
+- hosts total / passed / failed
+- Prism validation status
+- guest validation status
+- optional SHA-256 digest of the external validation artifact
+- sanitized evidence reference
+- technical summary
+
+Validation cannot be recorded while an execution is still `Planned`. A `Passed` record cannot contain failed hosts/checks, and SHA-256 values are validated before persistence.
+
+Technical validation records are added to the implementation PDF and the evidence ZIP as `technical-validations.json`. These remain operator-recorded evidence: the application preserves provenance and integrity metadata but does not claim it independently witnessed the Ansible, Prism or Nutanix Move activity.
+
 ## Ansible post-migration validation export
 
 Migration Factory can generate a **no-secret post-migration Ansible validation pack**:
@@ -569,6 +594,21 @@ This repository is genuine engineering work, but production Nutanix implementati
 8. Publish sanitized operational evidence and handover material.
 
 ## Roadmap
+
+### v0.8
+- [x] execution-linked technical validation records
+- [x] Passed / Partial / Failed validation lifecycle
+- [x] host pass/fail accounting validation
+- [x] Prism and guest validation status
+- [x] optional external artifact SHA-256
+- [x] technical validation audit events
+- [x] validation records in implementation PDF
+- [x] validation JSON in integrity-manifest evidence bundle
+- [x] React technical-validation dashboard
+- [x] Alembic technical-validation migration
+- [ ] ingest machine-generated Ansible result artifact from an authorized migration
+- [ ] bind external artifact digest to a real execution evidence reference
+
 
 ### v0.7
 - [x] generated Ansible post-migration validation pack
