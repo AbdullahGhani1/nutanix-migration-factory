@@ -152,3 +152,20 @@ export async function downloadAuthenticated(path:string, filename:string){
   anchor.remove()
   URL.revokeObjectURL(url)
 }
+
+
+export async function testPrismConnection(){
+  return jsonOrThrow(await apiFetch('/api/v1/nutanix/connection-test'))
+}
+
+export async function getPrismEnvironmentSummary(maxItems=1000){
+  return jsonOrThrow(await apiFetch(`/api/v1/nutanix/environment-summary?max_items=${maxItems}`))
+}
+
+export async function getPrismNetworkReconciliation(maxItems=1000){
+  return jsonOrThrow(await apiFetch(`/api/v1/nutanix/network-reconcile?max_items=${maxItems}`))
+}
+
+export async function getPrismSubnets(limit=100){
+  return jsonOrThrow(await apiFetch(`/api/v1/nutanix/subnets?limit=${limit}`))
+}
