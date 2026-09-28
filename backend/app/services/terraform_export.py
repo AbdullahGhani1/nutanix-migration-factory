@@ -105,7 +105,7 @@ variable "enable_vm_creation" {
 }
 '''
 
-    locals_tf = "locals {\n  workloads = " + json.dumps(workload_map, indent=2) + "\n}\n"
+    locals_tf = '''locals {\n  workloads = jsondecode(file("${path.module}/workloads.json"))\n}\n'''
 
     planned_vms_tf = '''# SAFETY: VM creation is disabled by default.
 #
@@ -151,7 +151,7 @@ resource "nutanix_virtual_machine_v2" "planned" {
 
     outputs_tf = '''output "planned_workloads" {
   description = "Workloads represented by this generated planning pack."
-  value = local.workloads
+  value       = local.workloads
 }
 
 output "created_vm_ext_ids" {
@@ -220,7 +220,7 @@ before any approved apply.
         "versions.tf": versions_tf.encode(),
         "provider.tf": provider_tf.encode(),
         "variables.tf": variables_tf.encode(),
-        "locals.tf": locals_tf.encode(),
+        "locals.tf": locals_tf.encode(),\n        "workloads.json": json.dumps(workload_map, indent=2, sort_keys=True).encode(),
         "planned_vms.tf": planned_vms_tf.encode(),
         "outputs.tf": outputs_tf.encode(),
         "terraform.tfvars.example": tfvars_example.encode(),
