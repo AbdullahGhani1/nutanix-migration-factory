@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity, ClipboardCheck, Database, FileText, FileUp, Gauge, Layers3, Map,
-  Server, ShieldAlert, Waypoints
+  Activity, CheckCircle2, ClipboardCheck, Database, FileText, FileUp, Gauge, Layers3, Map,
+  Server, ShieldAlert, UserCheck, Waypoints, XCircle
 } from 'lucide-react'
 import {
-  API, applyNetworkMapping, assess, createTargetCluster, evaluateWaveCapacity,
-  getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
-  reconcilePrismClusters, uploadInventory
+  API, applyNetworkMapping, assess, createTargetCluster, decideApproval, evaluateWaveCapacity,
+  getApprovals, getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
+  reconcilePrismClusters, requestWaveApproval, uploadInventory
 } from './api'
 
 type Workload = {
@@ -25,6 +25,12 @@ type TargetCluster = {
   id:number; name:string; prism_ext_id:string; physical_cpu_cores:number;
   cpu_overcommit_ratio:number; allocated_vcpu:number; total_memory_gb:number;
   used_memory_gb:number; usable_storage_gb:number; used_storage_gb:number; enabled:boolean;
+}
+
+type Approval = {
+  id:number; wave_number:number; target_cluster_id:number; status:string;
+  requested_by:string; requested_at:string; decided_by:string; decided_at:string|null;
+  change_ticket:string; notes:string; decision_notes:string; headroom_percent:number;
 }
 
 type CapacityEvaluation = {
@@ -61,10 +67,17 @@ export default function App(){
   const [capacityWave,setCapacityWave]=useState(1)
   const [headroom,setHeadroom]=useState(20)
   const [prismStatus,setPrismStatus]=useState<any|null>(null)
+  const [approvals,setApprovals]=useState<Approval[]>([])
+  const [approvalWave,setApprovalWave]=useState(1)
+  const [approvalClusterId,setApprovalClusterId]=useState(0)
+  const [requestedBy,setRequestedBy]=useState('migration.engineer')
+  const [changeTicket,setChangeTicket]=useState('CHG-2026-0042')
+  const [decidedBy,setDecidedBy]=useState('change.manager')
 
   const refresh=async()=>setRows(await getWorkloads())
   const refreshClusters=async()=>setClusters(await getTargetClusters())
-  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{})},[])
+  const refreshApprovals=async()=>setApprovals(await getApprovals())
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{});refreshApprovals().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -148,6 +161,33 @@ export default function App(){
       const result=await reconcilePrismClusters()
       setPrismStatus(result)
       setMessage(`Prism reconciliation: ${result.matched} matched, ${result.unmatched} unmatched`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const requestApproval=async()=>{
+    if(!approvalClusterId){setMessage('Select a target cluster before requesting approval');return}
+    setBusy(true);setMessage('')
+    try{
+      await requestWaveApproval(approvalWave,{
+        target_cluster_id:approvalClusterId,
+        requested_by:requestedBy,
+        change_ticket:changeTicket,
+        headroom_percent:headroom,
+        notes:'Requested from Migration Factory governance dashboard',
+      })
+      await refreshApprovals()
+      setMessage(`Wave ${approvalWave} submitted for change approval`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const decide=async(id:number,decision:'Approved'|'Rejected')=>{
+    setBusy(true);setMessage('')
+    try{
+      await decideApproval(id,{decision,decided_by:decidedBy,notes:`${decision} from governance dashboard`})
+      await refreshApprovals()
+      setMessage(`Approval #${id} marked ${decision}`)
     }catch(e:any){setMessage(e.message)}
     finally{setBusy(false)}
   }
@@ -260,6 +300,39 @@ export default function App(){
         </div>
       </div>
       <p className="capacityDisclaimer">Capacity results are a planning envelope, not a production sizing recommendation. Final sizing must consider measured utilization, HA/N+1, resiliency, reservations and current Nutanix sizing guidance.</p>
+    </section>
+
+    <section className="panel governancePanel">
+      <div className="panelHead">
+        <div><h2><UserCheck size={18}/> Migration governance</h2><p>Approval requests are accepted only after readiness and selected-cluster capacity gates pass.</p></div>
+      </div>
+      <div className="governanceLayout">
+        <div className="approvalForm">
+          <div className="formGrid governanceFields">
+            <Field label="Wave" type="number" value={approvalWave} onChange={(v:any)=>setApprovalWave(+v)}/>
+            <label className="field"><span>Target cluster</span><select value={approvalClusterId} onChange={e=>setApprovalClusterId(+e.target.value)}><option value={0}>Select cluster</option>{clusters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <Field label="Requested by" value={requestedBy} onChange={setRequestedBy}/>
+            <Field label="Change ticket" value={changeTicket} onChange={setChangeTicket}/>
+            <Field label="Decision actor" value={decidedBy} onChange={setDecidedBy}/>
+          </div>
+          <button className="button primary" disabled={busy||!rows.length||!clusters.length} onClick={requestApproval}><UserCheck size={16}/> Request approval</button>
+        </div>
+
+        <div className="approvalList">
+          {!approvals.length && <p className="muted">No migration approval requests yet.</p>}
+          {approvals.map(a=><div className="approvalCard" key={a.id}>
+            <div className="approvalMeta">
+              <strong>Wave {a.wave_number} · Approval #{a.id}</strong>
+              <span>{a.change_ticket||'No change ticket'} · requested by {a.requested_by}</span>
+            </div>
+            <div className={`approvalStatus ${a.status.toLowerCase()}`}>{a.status}</div>
+            {a.status==='Pending' && <div className="approvalActions">
+              <button className="iconButton approve" title="Approve" onClick={()=>decide(a.id,'Approved')}><CheckCircle2 size={16}/></button>
+              <button className="iconButton reject" title="Reject" onClick={()=>decide(a.id,'Rejected')}><XCircle size={16}/></button>
+            </div>}
+          </div>)}
+        </div>
+      </div>
     </section>
 
     <section className="panel">
