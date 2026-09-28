@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ClipboardCheck, Database, FileText, FileUp, Layers3, Map, Server, ShieldAlert } from 'lucide-react'
-import { API, applyNetworkMapping, assess, getReadiness, getRunbook, getWorkloads, planWaves, uploadInventory } from './api'
+import {
+  Activity, ClipboardCheck, Database, FileText, FileUp, Gauge, Layers3, Map,
+  Server, ShieldAlert, Waypoints
+} from 'lucide-react'
+import {
+  API, applyNetworkMapping, assess, createTargetCluster, evaluateWaveCapacity,
+  getReadiness, getRunbook, getTargetClusters, getWorkloads, planWaves,
+  reconcilePrismClusters, uploadInventory
+} from './api'
 
 type Workload = {
   id:number; name:string; cpu:number; memory_gb:number; storage_gb:number; os:string;
@@ -14,10 +21,32 @@ type Readiness = {
   workloads:{workload_id:number;name:string;status:string;blockers:string[];warnings:string[]}[]
 }
 
+type TargetCluster = {
+  id:number; name:string; prism_ext_id:string; physical_cpu_cores:number;
+  cpu_overcommit_ratio:number; allocated_vcpu:number; total_memory_gb:number;
+  used_memory_gb:number; usable_storage_gb:number; used_storage_gb:number; enabled:boolean;
+}
+
+type CapacityEvaluation = {
+  headroom_percent:number;
+  demand:{wave:number;workloads:number;vcpu:number;memory_gb:number;storage_gb:number};
+  candidates:{
+    cluster_id:number;cluster_name:string;fit:boolean;score:number;reasons:string[];
+    projected_vcpu:number;projected_memory_gb:number;projected_storage_gb:number;
+    max_vcpu_after_headroom:number;max_memory_after_headroom_gb:number;max_storage_after_headroom_gb:number;
+  }[];
+}
+
 const DEFAULT_MAPPING = `# source=target
 VLAN120=AHV-PROD-APP
 VLAN121=AHV-PROD-DB
 DEV-*=AHV-DEV`
+
+const EMPTY_CLUSTER = {
+  name:'AHV-PROD-A', prism_ext_id:'', physical_cpu_cores:64, cpu_overcommit_ratio:4,
+  allocated_vcpu:80, total_memory_gb:1024, used_memory_gb:320,
+  usable_storage_gb:20000, used_storage_gb:7000, enabled:true,
+}
 
 export default function App(){
   const [rows,setRows]=useState<Workload[]>([])
@@ -26,9 +55,16 @@ export default function App(){
   const [mappingText,setMappingText]=useState(DEFAULT_MAPPING)
   const [readiness,setReadiness]=useState<Readiness|null>(null)
   const [runbook,setRunbook]=useState<any|null>(null)
+  const [clusters,setClusters]=useState<TargetCluster[]>([])
+  const [clusterForm,setClusterForm]=useState<any>(EMPTY_CLUSTER)
+  const [capacity,setCapacity]=useState<CapacityEvaluation|null>(null)
+  const [capacityWave,setCapacityWave]=useState(1)
+  const [headroom,setHeadroom]=useState(20)
+  const [prismStatus,setPrismStatus]=useState<any|null>(null)
 
   const refresh=async()=>setRows(await getWorkloads())
-  useEffect(()=>{refresh().catch(()=>{})},[])
+  const refreshClusters=async()=>setClusters(await getTargetClusters())
+  useEffect(()=>{refresh().catch(()=>{});refreshClusters().catch(()=>{})},[])
 
   const stats=useMemo(()=>({
     vms: rows.length,
@@ -49,7 +85,7 @@ export default function App(){
   const upload=async(e:any)=>{
     const f=e.target.files?.[0]
     if(f){
-      setReadiness(null); setRunbook(null)
+      setReadiness(null); setRunbook(null); setCapacity(null)
       await act(()=>uploadInventory(f),`Imported ${f.name}`)
     }
   }
@@ -84,12 +120,44 @@ export default function App(){
     finally{setBusy(false)}
   }
 
+  const addCluster=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      await createTargetCluster(clusterForm)
+      await refreshClusters()
+      setMessage(`Target cluster ${clusterForm.name} added`)
+      setClusterForm({...EMPTY_CLUSTER,name:`AHV-PROD-${clusters.length+2}`})
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const evalCapacity=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      const result=await evaluateWaveCapacity(capacityWave,headroom)
+      setCapacity(result)
+      const fit=result.candidates.filter((x:any)=>x.fit).length
+      setMessage(`Wave ${capacityWave}: ${fit}/${result.candidates.length} cluster(s) fit the configured headroom policy`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
+  const reconcile=async()=>{
+    setBusy(true);setMessage('')
+    try{
+      const result=await reconcilePrismClusters()
+      setPrismStatus(result)
+      setMessage(`Prism reconciliation: ${result.matched} matched, ${result.unmatched} unmatched`)
+    }catch(e:any){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
+
   return <div className="page">
     <header>
       <div>
         <p className="eyebrow">VMWARE → NUTANIX AHV</p>
         <h1>Migration Factory</h1>
-        <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, wave planning and Prism Central discovery.</p>
+        <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="badge"><Activity size={18}/> v0.2</div>
     </header>
@@ -141,6 +209,59 @@ export default function App(){
       </div>
     </section>
 
+    <section className="panel capacityPanel">
+      <div className="panelHead">
+        <div><h2><Gauge size={18}/> Target AHV capacity planner</h2><p>Model placement using an explicit CPU overcommit envelope plus memory/storage headroom.</p></div>
+        <button className="button" disabled={busy} onClick={reconcile}><Waypoints size={16}/> Reconcile Prism</button>
+      </div>
+      <div className="capacityLayout">
+        <div className="clusterForm">
+          <h3>Add target cluster</h3>
+          <div className="formGrid">
+            <Field label="Cluster name" value={clusterForm.name} onChange={(v:any)=>setClusterForm({...clusterForm,name:v})}/>
+            <Field label="Prism extId (optional)" value={clusterForm.prism_ext_id} onChange={(v:any)=>setClusterForm({...clusterForm,prism_ext_id:v})}/>
+            <Field label="Physical CPU cores" type="number" value={clusterForm.physical_cpu_cores} onChange={(v:any)=>setClusterForm({...clusterForm,physical_cpu_cores:+v})}/>
+            <Field label="CPU overcommit ratio" type="number" step="0.5" value={clusterForm.cpu_overcommit_ratio} onChange={(v:any)=>setClusterForm({...clusterForm,cpu_overcommit_ratio:+v})}/>
+            <Field label="Allocated vCPU" type="number" value={clusterForm.allocated_vcpu} onChange={(v:any)=>setClusterForm({...clusterForm,allocated_vcpu:+v})}/>
+            <Field label="Total memory GB" type="number" value={clusterForm.total_memory_gb} onChange={(v:any)=>setClusterForm({...clusterForm,total_memory_gb:+v})}/>
+            <Field label="Used memory GB" type="number" value={clusterForm.used_memory_gb} onChange={(v:any)=>setClusterForm({...clusterForm,used_memory_gb:+v})}/>
+            <Field label="Usable storage GB" type="number" value={clusterForm.usable_storage_gb} onChange={(v:any)=>setClusterForm({...clusterForm,usable_storage_gb:+v})}/>
+            <Field label="Used storage GB" type="number" value={clusterForm.used_storage_gb} onChange={(v:any)=>setClusterForm({...clusterForm,used_storage_gb:+v})}/>
+          </div>
+          <button className="button primary" disabled={busy} onClick={addCluster}>Add target cluster</button>
+        </div>
+
+        <div className="clusterList">
+          <div className="capacityControls">
+            <label>Wave<input type="number" min="1" value={capacityWave} onChange={e=>setCapacityWave(+e.target.value)}/></label>
+            <label>Headroom %<input type="number" min="0" max="50" value={headroom} onChange={e=>setHeadroom(+e.target.value)}/></label>
+            <button className="button primary" disabled={busy||!clusters.length||!stats.waves} onClick={evalCapacity}>Evaluate placement</button>
+          </div>
+
+          {!clusters.length && <p className="muted">Add at least one target cluster capacity profile.</p>}
+          {clusters.map(c=><div className="clusterCard" key={c.id}>
+            <div><strong>{c.name}</strong><span>{c.prism_ext_id||'No Prism extId configured'}</span></div>
+            <div className="clusterMetrics">
+              <span>{c.physical_cpu_cores} cores × {c.cpu_overcommit_ratio}x</span>
+              <span>{c.used_memory_gb}/{c.total_memory_gb} GB RAM</span>
+              <span>{Math.round(c.used_storage_gb/1024*10)/10}/{Math.round(c.usable_storage_gb/1024*10)/10} TB</span>
+            </div>
+          </div>)}
+
+          {capacity && <div className="placementResults">
+            <h3>Wave {capacity.demand.wave} demand: {capacity.demand.vcpu} vCPU · {capacity.demand.memory_gb} GB RAM · {Math.round(capacity.demand.storage_gb/1024*10)/10} TB</h3>
+            {capacity.candidates.map(c=><div className={`placement ${c.fit?'fit':'nofit'}`} key={c.cluster_id}>
+              <div><strong>{c.cluster_name}</strong><span>{c.fit?'Fits policy':'Does not fit policy'} · score {c.score}</span></div>
+              <ul>{c.reasons.map((x,i)=><li key={i}>{x}</li>)}</ul>
+            </div>)}
+          </div>}
+
+          {prismStatus && <div className="prismSummary">Prism Central: <strong>{prismStatus.matched} matched</strong> · {prismStatus.unmatched} unmatched · {prismStatus.prism_clusters} discovered</div>}
+        </div>
+      </div>
+      <p className="capacityDisclaimer">Capacity results are a planning envelope, not a production sizing recommendation. Final sizing must consider measured utilization, HA/N+1, resiliency, reservations and current Nutanix sizing guidance.</p>
+    </section>
+
     <section className="panel">
       <div className="panelHead">
         <div><h2>Estate assessment</h2><p>Scores represent migration complexity, not Nutanix compatibility.</p></div>
@@ -176,3 +297,4 @@ function Stat({label,value,icon}:{label:string,value:any,icon?:any}){return <div
 function Risk({value}:{value:string|null}){return value?<span className={`risk ${value.toLowerCase()}`}>{value}</span>:<>—</>}
 function Mini({label,value,tone}:{label:string,value:number,tone:string}){return <div className={`mini ${tone}`}><span>{label}</span><strong>{value}</strong></div>}
 function RunbookList({title,items}:{title:string,items:string[]}){return <div><h3>{title}</h3><ol>{items.map((x,i)=><li key={i}>{x}</li>)}</ol></div>}
+function Field({label,value,onChange,type='text',step}:{label:string,value:any,onChange:(v:string)=>void,type?:string,step?:string}){return <label className="field"><span>{label}</span><input type={type} step={step} value={value} onChange={e=>onChange(e.target.value)}/></label>}
