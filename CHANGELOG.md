@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0 — in development
+
+- Added technical validation records linked to migration executions
+- Added Passed / Partial / Failed validation states
+- Added host pass/fail accounting and validation consistency checks
+- Added Prism and guest validation status fields
+- Added optional external artifact SHA-256 validation
+- Added validation audit events and API endpoints
+- Added technical validation evidence to implementation PDF
+- Added technical-validations.json to evidence ZIP with SHA-256 manifest
+- Added React technical-validation evidence dashboard
+- Added Alembic revision 0003 for validation evidence
+- Active-estate replacement now invalidates stale technical-validation records
+
+
 ## 0.7.0 — in development
 
 - Added generated Ansible post-migration validation pack
