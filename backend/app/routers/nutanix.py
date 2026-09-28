@@ -149,56 +149,56 @@ def capture_environment_evidence(
         )
     )
 
-    def run():
-        snapshot = _client().inventory_snapshot(max_items=max_items)
-        evidence = build_prism_environment_evidence(snapshot, target_names)
-        record = PrismEnvironmentEvidence(
-            status=evidence["status"],
-            actor=payload.actor.strip(),
-            clusters=evidence["clusters"],
-            vms=evidence["vms"],
-            subnets=evidence["subnets"],
-            target_networks=evidence["target_networks"],
-            matched_networks=evidence["matched_networks"],
-            missing_networks=evidence["missing_networks"],
-            ambiguous_networks=evidence["ambiguous_networks"],
-            cluster_inventory_truncated=evidence["cluster_inventory_truncated"],
-            vm_inventory_truncated=evidence["vm_inventory_truncated"],
-            subnet_inventory_truncated=evidence["subnet_inventory_truncated"],
-            snapshot_sha256=evidence["snapshot_sha256"],
-            warnings_json=json.dumps(evidence["warnings"], sort_keys=True),
-            network_reconciliation_json=json.dumps(
-                evidence["network_reconciliation"],
+    snapshot = _prism_call(
+        lambda: _client().inventory_snapshot(max_items=max_items)
+    )
+    evidence = build_prism_environment_evidence(snapshot, target_names)
+
+    record = PrismEnvironmentEvidence(
+        status=evidence["status"],
+        actor=payload.actor.strip(),
+        clusters=evidence["clusters"],
+        vms=evidence["vms"],
+        subnets=evidence["subnets"],
+        target_networks=evidence["target_networks"],
+        matched_networks=evidence["matched_networks"],
+        missing_networks=evidence["missing_networks"],
+        ambiguous_networks=evidence["ambiguous_networks"],
+        cluster_inventory_truncated=evidence["cluster_inventory_truncated"],
+        vm_inventory_truncated=evidence["vm_inventory_truncated"],
+        subnet_inventory_truncated=evidence["subnet_inventory_truncated"],
+        snapshot_sha256=evidence["snapshot_sha256"],
+        warnings_json=json.dumps(evidence["warnings"], sort_keys=True),
+        network_reconciliation_json=json.dumps(
+            evidence["network_reconciliation"],
+            sort_keys=True,
+        ),
+        evidence_reference=payload.evidence_reference.strip(),
+    )
+    db.add(record)
+    db.flush()
+    db.add(
+        PlanningAudit(
+            event_type="prism_evidence.captured",
+            entity=f"prism_evidence:{record.id}",
+            detail=json.dumps(
+                {
+                    "status": record.status,
+                    "actor": record.actor,
+                    "clusters": record.clusters,
+                    "vms": record.vms,
+                    "subnets": record.subnets,
+                    "target_networks": record.target_networks,
+                    "matched_networks": record.matched_networks,
+                    "missing_networks": record.missing_networks,
+                    "ambiguous_networks": record.ambiguous_networks,
+                    "snapshot_sha256": record.snapshot_sha256,
+                    "evidence_reference": record.evidence_reference,
+                },
                 sort_keys=True,
             ),
-            evidence_reference=payload.evidence_reference.strip(),
         )
-        db.add(record)
-        db.flush()
-        db.add(
-            PlanningAudit(
-                event_type="prism_evidence.captured",
-                entity=f"prism_evidence:{record.id}",
-                detail=json.dumps(
-                    {
-                        "status": record.status,
-                        "actor": record.actor,
-                        "clusters": record.clusters,
-                        "vms": record.vms,
-                        "subnets": record.subnets,
-                        "target_networks": record.target_networks,
-                        "matched_networks": record.matched_networks,
-                        "missing_networks": record.missing_networks,
-                        "ambiguous_networks": record.ambiguous_networks,
-                        "snapshot_sha256": record.snapshot_sha256,
-                        "evidence_reference": record.evidence_reference,
-                    },
-                    sort_keys=True,
-                ),
-            )
-        )
-        db.commit()
-        db.refresh(record)
-        return record
-
-    return _prism_call(run)
+    )
+    db.commit()
+    db.refresh(record)
+    return record
