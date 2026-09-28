@@ -43,16 +43,16 @@ def build_ansible_validation_pack(workloads) -> bytes:
 
     def host_block(records):
         if not records:
-            return "      {}\n"
+            return "        {}\n"
         lines = []
         for item in records:
             lines.extend([
-                f"      {json.dumps(item['alias'])}:",
-                f"        ansible_host: {json.dumps(item['ansible_host'])}",
-                f"        migration_name: {json.dumps(item['name'])}",
-                f"        migration_wave: {json.dumps(item['wave'])}",
-                f"        expected_target_network: {json.dumps(item['target_network'])}",
-                f"        migration_criticality: {json.dumps(item['criticality'])}",
+                f"        {json.dumps(item['alias'])}:",
+                f"          ansible_host: {json.dumps(item['ansible_host'])}",
+                f"          migration_name: {json.dumps(item['name'])}",
+                f"          migration_wave: {json.dumps(item['wave'])}",
+                f"          expected_target_network: {json.dumps(item['target_network'])}",
+                f"          migration_criticality: {json.dumps(item['criticality'])}",
             ])
         return "\n".join(lines) + "\n"
 
@@ -163,9 +163,9 @@ collections:
 '''
 
     site_playbook = '''---
-- import_playbook: validate_prism.yml
-- import_playbook: validate_linux.yml
-- import_playbook: validate_windows.yml
+- import_playbook: playbooks/validate_prism.yml
+- import_playbook: playbooks/validate_linux.yml
+- import_playbook: playbooks/validate_windows.yml
 '''
 
     ansible_cfg = '''[defaults]
