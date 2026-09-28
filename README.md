@@ -2,7 +2,7 @@
 
 A production-oriented migration assessment, readiness-control and wave-planning platform for VMware-to-Nutanix programs.
 
-> **Project status:** v0.3 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
+> **Project status:** v0.4 in development. The application performs inventory ingestion, normalization, migration-complexity assessment, source-to-AHV network mapping, readiness checks, wave planning, cutover/rollback runbook generation, reporting, and optional Prism Central inventory discovery. It does **not** claim to replace Nutanix Move compatibility checks or Nutanix professional services guidance.
 
 ## Why this project exists
 
@@ -41,9 +41,13 @@ This repository implements that workflow as software.
 - Alembic database migrations with migration validation in CI
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
-- Optional Prism Central v4 inventory connector
-  - list registered clusters
-  - list VMs
+- Read-only Prism Central v4 discovery connector
+  - connection test
+  - paginated registered-cluster inventory
+  - paginated AHV VM inventory
+  - paginated subnet inventory
+  - target-network → Prism subnet reconciliation
+  - explicit inventory truncation indicators
 - React dashboard
 - Docker Compose local stack
 - Backend test suite
@@ -355,7 +359,31 @@ Grafana:    http://localhost:3000
 
 Change the Grafana development password before using the stack outside a local environment.
 
+## Live Prism Central discovery
+
+The read-only connector uses the Nutanix v4 API family for clusters, AHV VMs and networking subnets.
+
+```text
+GET /api/clustermgmt/v4.0/ahv/config/clusters
+GET /api/vmm/v4.0/ahv/config/vms
+GET /api/networking/v4.0/config/subnets
+```
+
+Migration Factory exposes:
+
+```text
+GET /api/v1/nutanix/connection-test
+GET /api/v1/nutanix/environment-summary
+GET /api/v1/nutanix/subnets
+GET /api/v1/nutanix/network-reconcile
+```
+
+The inventory collector paginates with `$page` / `$limit`, enforces a configurable maximum inventory size, and reports when its own cap truncates the result. Network reconciliation compares planned AHV target names with live Prism subnet names and reports **Matched**, **Missing** or **Ambiguous**.
+
+No Prism mutation is executed by these endpoints.
+
 ## Prism Central connector
+
 
 
 Configure:
@@ -414,6 +442,16 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] migration approval/audit workflow
 - [x] approval dashboard
 - [x] persistent target-cluster update/edit workflow
+
+### v0.4
+- [x] Prism connection-test endpoint
+- [x] GA v4 subnet inventory endpoint
+- [x] paginated cluster/VM/subnet discovery
+- [x] inventory truncation visibility
+- [x] target-network → live Prism subnet reconciliation
+- [x] React live-discovery dashboard
+- [ ] validate against an authorized Prism Central environment
+- [ ] add supported live utilization/statistics adapter after environment/version validation
 
 ### v0.3
 - [x] workload dependency graph
