@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .db import Base, engine
-from .routers import assessments, imports, nutanix, planning, reports, waves, workloads
+from .routers import assessments, capacity, imports, nutanix, planning, reports, waves, workloads
 
 settings = get_settings()
 Base.metadata.create_all(bind=engine)
@@ -13,7 +13,8 @@ app = FastAPI(
     version="0.2.0",
     description=(
         "VMware-to-Nutanix migration inventory, complexity assessment, network mapping, "
-        "readiness control, wave planning, runbook generation, reporting and Prism Central discovery."
+        "readiness control, AHV target capacity planning, wave planning, runbook generation, "
+        "reporting and Prism Central discovery."
     ),
 )
 app.add_middleware(
@@ -29,6 +30,7 @@ app.include_router(workloads.router)
 app.include_router(assessments.router)
 app.include_router(waves.router)
 app.include_router(planning.router)
+app.include_router(capacity.router)
 app.include_router(reports.router)
 app.include_router(nutanix.router)
 
