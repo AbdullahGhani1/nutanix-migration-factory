@@ -111,3 +111,17 @@ export async function createDependency(payload:any){
 export async function getDependencyGraph(){
   return jsonOrThrow(await fetch(`${API}/api/v1/dependencies/graph`))
 }
+
+
+export async function optimizeWaves(params?:{
+  max_vms?:number; max_vcpu?:number; max_memory_gb?:number;
+  max_storage_gb?:number; strategy?:'pilot_first'|'risk_first';
+}){
+  const q = new URLSearchParams()
+  q.set('max_vms', String(params?.max_vms ?? 20))
+  q.set('max_vcpu', String(params?.max_vcpu ?? 160))
+  q.set('max_memory_gb', String(params?.max_memory_gb ?? 512))
+  q.set('max_storage_gb', String(params?.max_storage_gb ?? 5000))
+  q.set('strategy', params?.strategy ?? 'pilot_first')
+  return jsonOrThrow(await fetch(`${API}/api/v1/optimizer/waves?${q.toString()}`, {method:'POST'}))
+}
