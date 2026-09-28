@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import Base, engine
 from .observability import ObservabilityMiddleware
+from .security import ServiceKeyRBACMiddleware
 from .routers import approvals, assessments, capacity, dependencies, imports, nutanix, operations, optimizer, planning, reports, waves, workloads
 
 settings = get_settings()
@@ -28,6 +29,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(ServiceKeyRBACMiddleware)
 app.add_middleware(ObservabilityMiddleware)
 
 app.include_router(imports.router)
@@ -50,4 +52,5 @@ def health():
         "status": "ok",
         "service": "nutanix-migration-factory",
         "version": "0.3.0",
+        "auth_enabled": settings.auth_enabled,
     }
