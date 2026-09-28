@@ -286,8 +286,8 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] target AHV capacity model
 - [x] Prism cluster identity reconciliation
 - [x] migration approval/audit workflow
-- [ ] approval dashboard
-- [ ] persistent target-cluster update/edit workflow
+- [x] approval dashboard
+- [x] persistent target-cluster update/edit workflow
 
 ### v0.3
 - live target-cluster utilization adapter using supported telemetry APIs
