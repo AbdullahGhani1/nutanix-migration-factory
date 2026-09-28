@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 — release candidate
+
+- Added persistent Prism environment evidence captured through the read-only v4 connector
+- Added cluster, VM and subnet observed counts
+- Added target-network reconciliation evidence with matched/missing/ambiguous totals
+- Added inventory-truncation flags so incomplete discovery cannot be mistaken for complete inventory
+- Added SHA-256 digest of the full in-memory Prism snapshot without persisting the raw payload
+- Added Prism evidence audit events and API endpoints
+- Added React capture/history workflow
+- Added Prism environment evidence to the implementation PDF
+- Added prism-environment-evidence.json to the SHA-256 evidence bundle
+- Added latest Prism evidence snapshot to CAB/change packages
+- Added Alembic revision 0004 for Prism environment evidence
+- Remaining release validation requires an authorized Prism Central environment and a real Nutanix Move pilot
+
+
 ## 0.9.0 — in development
 
 - Added approval-linked enterprise CAB/change package generation
