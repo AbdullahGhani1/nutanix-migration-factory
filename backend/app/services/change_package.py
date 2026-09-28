@@ -163,7 +163,7 @@ def _cab_pdf(approval, target_cluster, workloads, readiness, capacity, runbook, 
     return buffer.getvalue()
 
 
-def build_cab_package(*, approval, target_cluster, workloads, dependencies, execution=None, validations=None) -> bytes:
+def build_cab_package(*, approval, target_cluster, workloads, dependencies, execution=None, validations=None, prism_evidence=None) -> bytes:
     """Generate an approval-linked enterprise change/CAB handoff package."""
     validations = validations or []
     if approval.status != "Approved":
@@ -340,6 +340,33 @@ Execute the approved VMware-to-Nutanix AHV migration wave represented by this pa
         "provenance": "Operator-recorded evidence; not independently verified by Migration Factory.",
     }, indent=2, sort_keys=True).encode()
 
+    prism_evidence_json = json.dumps(
+        None if not prism_evidence else {
+            "id": prism_evidence.id,
+            "status": prism_evidence.status,
+            "actor": prism_evidence.actor,
+            "clusters": prism_evidence.clusters,
+            "vms": prism_evidence.vms,
+            "subnets": prism_evidence.subnets,
+            "target_networks": prism_evidence.target_networks,
+            "matched_networks": prism_evidence.matched_networks,
+            "missing_networks": prism_evidence.missing_networks,
+            "ambiguous_networks": prism_evidence.ambiguous_networks,
+            "cluster_inventory_truncated": prism_evidence.cluster_inventory_truncated,
+            "vm_inventory_truncated": prism_evidence.vm_inventory_truncated,
+            "subnet_inventory_truncated": prism_evidence.subnet_inventory_truncated,
+            "snapshot_sha256": prism_evidence.snapshot_sha256,
+            "evidence_reference": prism_evidence.evidence_reference,
+            "captured_at": prism_evidence.captured_at.isoformat(),
+            "provenance": (
+                "Captured directly through the configured read-only Prism Central API connector. "
+                "The record proves what Migration Factory observed at capture time; it does not certify supportability or sizing."
+            ),
+        },
+        indent=2,
+        sort_keys=True,
+    ).encode()
+
     cab_pdf = _cab_pdf(approval, target_cluster, workloads, readiness, capacity, runbook, execution, validations)
     inventory_csv = _csv_inventory(workloads)
 
@@ -355,6 +382,7 @@ Execute the approved VMware-to-Nutanix AHV migration wave represented by this pa
         "capacity-snapshot.json": capacity_json,
         "dependency-map.json": dependency_json,
         "execution-evidence.json": evidence_json,
+        "prism-environment-evidence.json": prism_evidence_json,
     }
 
     manifest = {
