@@ -214,7 +214,7 @@ def implementation_report_pdf(db: Session = Depends(get_db)):
 
 @router.get("/evidence-bundle.zip")
 def evidence_bundle_zip(db: Session = Depends(get_db)):
-    workloads, clusters, approvals, dependencies, executions, validations = _estate(db)
+    workloads, clusters, approvals, dependencies, executions, validations, prism_evidence = _estate(db)
     pdf = build_implementation_report(
         workloads,
         clusters,
