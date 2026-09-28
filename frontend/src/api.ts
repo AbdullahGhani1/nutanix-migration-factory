@@ -94,3 +94,20 @@ export async function deleteTargetCluster(id:number){
     method:'DELETE',
   }))
 }
+
+
+export async function getDependencies(){
+  return jsonOrThrow(await fetch(`${API}/api/v1/dependencies`))
+}
+
+export async function createDependency(payload:any){
+  return jsonOrThrow(await fetch(`${API}/api/v1/dependencies`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }))
+}
+
+export async function getDependencyGraph(){
+  return jsonOrThrow(await fetch(`${API}/api/v1/dependencies/graph`))
+}
