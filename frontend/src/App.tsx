@@ -359,7 +359,7 @@ export default function App(){
         <p className="subtitle">Enterprise migration assessment, deterministic network mapping, readiness controls, target-cluster capacity planning and Prism Central reconciliation.</p>
       </div>
       <div className="headerTools">
-        <div className="badge"><Activity size={18}/> v0.5-dev</div>
+        <div className="badge"><Activity size={18}/> v0.6-dev</div>
         <div className="apiKeyBox">
           <input type="password" placeholder="Session API key (optional)" value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
           <button className="button" onClick={connectApiKey}>Apply key</button>
@@ -376,6 +376,7 @@ export default function App(){
       <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/migration-plan.csv','migration-plan.csv')}><Database size={17}/> Export CSV</button>
       <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/implementation-report.pdf','nutanix-implementation-report.pdf')}><FileText size={17}/> Implementation PDF</button>
       <button className="button" disabled={busy} onClick={()=>download('/api/v1/reports/evidence-bundle.zip','nutanix-migration-evidence-bundle.zip')}><Database size={17}/> Evidence bundle</button>
+      <button className="button" disabled={busy||!rows.length} onClick={()=>download('/api/v1/reports/terraform-pack.zip','nutanix-terraform-pack.zip')}><FileText size={17}/> Terraform pack</button>
     </section>
 
     {message && <div className="notice">{message}</div>}
