@@ -60,3 +60,19 @@ class PlanningAudit(Base):
     entity: Mapped[str] = mapped_column(String(255), default="")
     detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class MigrationApproval(Base):
+    __tablename__ = "migration_approvals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    wave_number: Mapped[int] = mapped_column(Integer, index=True)
+    target_cluster_id: Mapped[int] = mapped_column(ForeignKey("target_clusters.id"))
+    status: Mapped[str] = mapped_column(String(32), default="Pending", index=True)
+    requested_by: Mapped[str] = mapped_column(String(255))
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_by: Mapped[str] = mapped_column(String(255), default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    change_ticket: Mapped[str] = mapped_column(String(128), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    decision_notes: Mapped[str] = mapped_column(Text, default="")
+    headroom_percent: Mapped[float] = mapped_column(Float, default=20.0)
