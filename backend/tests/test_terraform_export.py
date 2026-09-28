@@ -33,6 +33,7 @@ def test_terraform_pack_is_safe_and_complete():
             "provider.tf",
             "variables.tf",
             "locals.tf",
+            "workloads.json",
             "planned_vms.tf",
             "outputs.tf",
             "terraform.tfvars.example",
@@ -62,6 +63,6 @@ def test_duplicate_sanitized_workload_names_remain_unique():
     ]
     payload = build_terraform_pack(workloads, [])
     with zipfile.ZipFile(io.BytesIO(payload)) as zf:
-        locals_tf = zf.read("locals.tf").decode()
-        assert '"APP-01"' in locals_tf
-        assert '"APP-01-2"' in locals_tf
+        workloads_json = json.loads(zf.read("workloads.json"))
+        assert "APP-01" in workloads_json
+        assert "APP-01-2" in workloads_json
