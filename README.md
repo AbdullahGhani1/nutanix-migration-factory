@@ -24,6 +24,11 @@ This repository implements that workflow as software.
   - ready-with-warning workloads
   - clean ready workloads
 - Application-aware migration-wave planning
+- Target AHV cluster capacity profiles with explicit CPU overcommit + headroom policy
+- Per-wave placement evaluation and ranked target-cluster candidates
+- Prism Central cluster identity reconciliation (extId/name)
+- Migration approval workflow gated by readiness + capacity
+- Planning audit history for cluster, capacity and approval events
 - Per-wave cutover + rollback runbook generation
 - CSV migration-plan report export
 - Optional Prism Central v4 inventory connector
@@ -46,11 +51,14 @@ flowchart LR
     E --> F[Network Mapping]
     F --> G[Readiness Gate]
     G --> H[Wave Planner]
-    H --> I[Cutover / Rollback Runbooks]
-    H --> J[Migration Reports]
-    K[Prism Central v4 API] --> L[Nutanix Inventory Adapter]
-    L --> D
-    M[React Dashboard] --> B
+    H --> I[Target AHV Capacity Gate]
+    I --> J[Approval Workflow]
+    J --> K[Cutover / Rollback Runbooks]
+    H --> L[Migration Reports]
+    M[Prism Central v4 API] --> N[Nutanix Inventory Adapter]
+    N --> D
+    N --> I
+    O[React Dashboard] --> B
 ```
 
 ## Tech stack
@@ -89,6 +97,10 @@ Source → AHV network mapping
 Readiness gate
     ↓
 Application-aware migration waves
+    ↓
+Target AHV capacity evaluation
+    ↓
+Readiness + capacity approval gate
     ↓
 Wave cutover + rollback runbook
     ↓
@@ -155,7 +167,63 @@ curl -X POST \
 curl http://localhost:8000/api/v1/planning/waves/1/runbook
 ```
 
-### 7. Export the migration plan
+### 7. Add a target AHV capacity profile
+
+```bash
+curl -X POST http://localhost:8000/api/v1/capacity/clusters \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"AHV-PROD-A",
+    "prism_ext_id":"",
+    "physical_cpu_cores":64,
+    "cpu_overcommit_ratio":4,
+    "allocated_vcpu":80,
+    "total_memory_gb":1024,
+    "used_memory_gb":320,
+    "usable_storage_gb":20000,
+    "used_storage_gb":7000,
+    "enabled":true
+  }'
+```
+
+### 8. Evaluate a wave against target capacity
+
+```bash
+curl "http://localhost:8000/api/v1/capacity/waves/1/evaluate?headroom_percent=20"
+```
+
+The CPU value is an explicit planning envelope based on physical cores × configured overcommit ratio. It is **not** an automatic Nutanix sizing recommendation.
+
+### 9. Request migration approval
+
+```bash
+curl -X POST http://localhost:8000/api/v1/approvals/waves/1/request \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_cluster_id":1,
+    "requested_by":"migration.engineer",
+    "change_ticket":"CHG-2026-0042",
+    "headroom_percent":20,
+    "notes":"Pilot wave after application-owner validation"
+  }'
+```
+
+A wave cannot enter approval while readiness blockers remain or when the selected target cluster fails the configured capacity policy.
+
+### 10. Approve or reject the migration wave
+
+```bash
+curl -X POST http://localhost:8000/api/v1/approvals/1/decision \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision":"Approved",
+    "decided_by":"change.manager",
+    "notes":"CAB approval recorded in CHG-2026-0042"
+  }'
+```
+
+### 11. Export the migration plan
+
 
 ```bash
 curl -o migration-plan.csv \
@@ -214,12 +282,15 @@ This repository is genuine engineering work, but production Nutanix implementati
 - [x] readiness controls
 - [x] wave runbook generation
 - [x] automated tests
-- [ ] dashboard for mapping/readiness
-- [ ] target AHV capacity model
-- [ ] migration approval/audit workflow
+- [x] dashboard for mapping/readiness
+- [x] target AHV capacity model
+- [x] Prism cluster identity reconciliation
+- [x] migration approval/audit workflow
+- [ ] approval dashboard
+- [ ] persistent target-cluster update/edit workflow
 
 ### v0.3
-- target-cluster recommendation
+- live target-cluster utilization adapter using supported telemetry APIs
 - dependency graph
 - migration-wave optimizer
 - PDF implementation report
