@@ -73,6 +73,8 @@ jobs:
       - run: pip install -r backend/requirements.txt "ansible-core>=2.18,<2.20"
       - run: PYTHONPATH=backend python backend/scripts/generate_ansible_fixture.py
       - run: ansible-galaxy collection install -r /tmp/migration-factory-ansible/collections/requirements.yml
+      - run: ansible-inventory -i /tmp/migration-factory-ansible/inventory/hosts.yml --list >/tmp/ansible-inventory.json
+      - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/site.yml --syntax-check
       - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_prism.yml --syntax-check
       - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_linux.yml --syntax-check
       - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_windows.yml --syntax-check
