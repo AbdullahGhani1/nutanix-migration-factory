@@ -19,7 +19,7 @@ jobs:
       - run: PYTHONPATH=. pytest -q
       - run: DATABASE_URL=sqlite:////tmp/migration_factory_ci.db alembic upgrade head
       - run: DATABASE_URL=sqlite:////tmp/migration_factory_ci.db alembic current
-      - run: PYTHONPATH=. python -c "from app.main import app; assert app.version == '0.6.0'"
+      - run: PYTHONPATH=. python -c "from app.main import app; assert app.version == '0.7.0'"
 
   frontend:
     runs-on: ubuntu-latest
@@ -60,3 +60,21 @@ jobs:
       - run: terraform -chdir=/tmp/migration-factory-terraform fmt -check
       - run: terraform -chdir=/tmp/migration-factory-terraform init -backend=false
       - run: terraform -chdir=/tmp/migration-factory-terraform validate
+
+
+  ansible-validation:
+    runs-on: ubuntu-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt "ansible-core>=2.18,<2.20"
+      - run: PYTHONPATH=backend python backend/scripts/generate_ansible_fixture.py
+      - run: ansible-galaxy collection install -r /tmp/migration-factory-ansible/collections/requirements.yml
+      - run: ansible-inventory -i /tmp/migration-factory-ansible/inventory/hosts.yml --list >/tmp/ansible-inventory.json
+      - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/site.yml --syntax-check
+      - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_prism.yml --syntax-check
+      - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_linux.yml --syntax-check
+      - run: ansible-playbook -i /tmp/migration-factory-ansible/inventory/hosts.yml /tmp/migration-factory-ansible/playbooks/validate_windows.yml --syntax-check
