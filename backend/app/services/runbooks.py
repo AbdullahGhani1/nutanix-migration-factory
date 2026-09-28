@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 
-def build_wave_runbook(wave_number: int, workloads: list) -> dict:
+def build_wave_runbook(
+    wave_number: int,
+    workloads: list,
+    start_order: list[str] | None = None,
+    stop_order: list[str] | None = None,
+    dependency_cycle: bool = False,
+) -> dict:
     names = [w.name for w in workloads]
     app_groups = sorted({w.app_group or "Ungrouped" for w in workloads})
     source_networks = sorted({w.source_network or "Unknown" for w in workloads})
@@ -16,6 +22,12 @@ def build_wave_runbook(wave_number: int, workloads: list) -> dict:
         "Validate Nutanix Move replication/pre-seed state where used",
         "Capture rollback checkpoints and DNS/load-balancer plan",
     ]
+
+    if dependency_cycle:
+        pre_cutover.append(
+            "BLOCKER: circular workload dependency detected; resolve dependency graph before automated sequencing"
+        )
+
     cutover = [
         "Freeze application changes and confirm business owner go/no-go",
         "Stop application services in documented dependency order",
@@ -39,6 +51,9 @@ def build_wave_runbook(wave_number: int, workloads: list) -> dict:
         "application_groups": app_groups,
         "source_networks": source_networks,
         "target_networks": target_networks,
+        "dependency_cycle": dependency_cycle,
+        "service_start_order": start_order or names,
+        "service_stop_order": stop_order or list(reversed(names)),
         "pre_cutover": pre_cutover,
         "cutover": cutover,
         "rollback": rollback,
